@@ -574,8 +574,15 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
     // Token symbol
     string private _symbol;
 
+
+    //Token ID to mint
+    uint256 public nextTokenIdToMint;
+
     // Mapping from token ID to owner address
     mapping(uint256 => address) private _owners;
+
+    /// @dev Mapping from tokenId => URI
+    mapping(uint256 => string) private uri;
 
     // Mapping owner address to token count
     mapping(address => uint256) private _balances;
@@ -640,10 +647,9 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
      */
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         _requireMinted(tokenId);
-
-        string memory baseURI = _baseURI();
-        return bytes(baseURI).length > 0 ? string(abi.encodePacked(baseURI, tokenId.toString())) : "";
+        return uri[tokenId];
     }
+   
 
     /**
      * @dev Base URI for computing {tokenURI}. If set, the resulting URI for each
@@ -730,8 +736,13 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
         _safeTransfer(from, to, tokenId, data);
     }
 
-    function mint(address to, uint256 tokenId) public virtual {
-        _safeMint(to, tokenId);
+    function mint(address to, string calldata _uri) public virtual {
+        nextTokenIdToMint += 1;
+
+        uri[nextTokenIdToMint] = _uri;
+
+
+        _safeMint(to, nextTokenIdToMint);
     }
 
     function burn(uint256 tokenId) public virtual {
