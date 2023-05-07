@@ -2,10 +2,10 @@
 
 pragma solidity ^0.8.19;
 
-import "./SafeMath.sol";
-import "./KindMath.sol";
+import "./openzeppelin/SafeMath.sol";
+import "./openzeppelin/KindMath.sol";
 
-contract ERC1410Basic {
+abstract contract ERC1410Basic {
     using SafeMath for uint256;
 
     // Represents a fungible set of tokens.
@@ -28,12 +28,9 @@ contract ERC1410Basic {
 
     event TransferByPartition(
         bytes32 indexed _fromPartition,
-        address _operator,
         address indexed _from,
         address indexed _to,
-        uint256 _value,
-        bytes _data,
-        bytes _operatorData
+        uint256 _value
     );
 
     /**
@@ -54,16 +51,23 @@ contract ERC1410Basic {
     /// @param _partition The partition for which to query the balance
     /// @param _tokenHolder An address for whom to query the balance
     /// @return The number of tokens owned by `_tokenHolder` with the metadata associated with `_partition`, possibly zero
-    function balanceOfByPartition(
+    function _balanceOfByPartition(
         bytes32 _partition,
         address _tokenHolder
-    ) external view returns (uint256) {
+    ) internal view returns (uint256) {
         if (_validPartition(_partition, _tokenHolder))
             return
                 partitions[_tokenHolder][
                     partitionToIndex[_tokenHolder][_partition] - 1
                 ].amount;
         else return 0;
+    }
+
+    function balanceOfByPartition(
+        bytes32 _partition,
+        address _tokenHolder
+    ) external view returns (uint256) {
+        return _balanceOfByPartition(_partition, _tokenHolder);
     }
 
     /// @notice Use to get the list of partitions `_tokenHolder` is associated with
@@ -85,31 +89,14 @@ contract ERC1410Basic {
     /// @param _partition The partition from which to transfer tokens
     /// @param _to The address to which to transfer tokens to
     /// @param _value The amount of tokens to transfer from `_partition`
-    /// @param _data Additional data attached to the transfer of tokens
     /// @return The partition to which the transferred tokens were allocated for the _to address
     function transferByPartition(
         bytes32 _partition,
         address _to,
-        uint256 _value,
-        bytes calldata _data
+        uint256 _value
     ) external returns (bytes32) {
-        // Add a function to verify the `_data` parameter
-        // TODO: Need to create the bytes division of the `_partition` so it can be easily findout in which receiver's partition
-        // token will transfered. For current implementation we are assuming that the receiver's partition will be same as sender's
-        // as well as it also pass the `_validPartition()` check. In this particular case we are also assuming that reciever has the
-        // some tokens of the same partition as well (To avoid the array index out of bound error).
-        // Note- There is no operator used for the execution of this call so `_operator` value in
-        // in event is address(0) same for the `_operatorData`
-        bytes memory emptyBytes = new bytes(0);
-        _transferByPartition(
-            msg.sender,
-            _to,
-            _value,
-            _partition,
-            _data,
-            address(0),
-            emptyBytes
-        );
+        _transferByPartition(msg.sender, _to, _value, _partition);
+        return _partition;
     }
 
     /// @notice The standard provides an on-chain function to determine whether a transfer will succeed,
@@ -118,7 +105,6 @@ contract ERC1410Basic {
     /// @param _to The address to which to transfer tokens to.
     /// @param _partition The partition from which to transfer tokens
     /// @param _value The amount of tokens to transfer from `_partition`
-    /// @param _data Additional data attached to the transfer of tokens
     /// @return ESC (Ethereum Status Code) following the EIP-1066 standard
     /// @return Application specific reason codes with additional details
     /// @return The partition to which the transferred tokens were allocated for the _to address
@@ -126,8 +112,7 @@ contract ERC1410Basic {
         address _from,
         address _to,
         bytes32 _partition,
-        uint256 _value,
-        bytes calldata _data
+        uint256 _value
     ) external view returns (bytes1, bytes32, bytes32) {
         // TODO: Applied the check over the `_data` parameter
         if (!_validPartition(_partition, _from))
@@ -151,10 +136,7 @@ contract ERC1410Basic {
         address _from,
         address _to,
         uint256 _value,
-        bytes32 _partition,
-        bytes calldata _data,
-        address _operator,
-        bytes memory _operatorData
+        bytes32 _partition
     ) internal {
         require(_validPartition(_partition, _from), "Invalid partition");
         require(
@@ -181,15 +163,7 @@ contract ERC1410Basic {
         );
         balances[_to] = balances[_to].add(_value);
         // Emit transfer event.
-        emit TransferByPartition(
-            _partition,
-            _operator,
-            _from,
-            _to,
-            _value,
-            _data,
-            _operatorData
-        );
+        emit TransferByPartition(_partition, _from, _to, _value);
     }
 
     function _validPartition(

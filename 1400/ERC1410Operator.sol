@@ -3,13 +3,14 @@
 pragma solidity ^0.8.19;
 
 import "./ERC1410Basic.sol";
+import "./Ownable.sol";
 
-contract ERC1410Operator is ERC1410Basic {
+abstract contract ERC1410Operator is ERC1410Basic, Ownable {
     // Mapping from (investor, partition, operator) to approved status
-    mapping(address => mapping(bytes32 => mapping(address => bool))) partitionApprovals;
+    mapping(address => mapping(bytes32 => mapping(address => bool))) operatorForThisPartition;
 
     // Mapping from (investor, operator) to approved status (can be used against any partition)
-    mapping(address => mapping(address => bool)) approvals;
+    mapping(address => mapping(address => bool)) operatorForAllPartitions;
 
     event AuthorizedOperator(
         address indexed operator,
@@ -39,7 +40,7 @@ contract ERC1410Operator is ERC1410Basic {
         address _operator,
         address _tokenHolder
     ) public view returns (bool) {
-        return approvals[_tokenHolder][_operator];
+        return operatorForAllPartitions[_tokenHolder][_operator];
     }
 
     /// @notice Determines whether `_operator` is an operator for a specified partition of `_tokenHolder`
@@ -52,7 +53,7 @@ contract ERC1410Operator is ERC1410Basic {
         address _operator,
         address _tokenHolder
     ) public view returns (bool) {
-        return partitionApprovals[_tokenHolder][_partition][_operator];
+        return operatorForThisPartition[_tokenHolder][_partition][_operator];
     }
 
     ///////////////////////
@@ -61,15 +62,15 @@ contract ERC1410Operator is ERC1410Basic {
 
     /// @notice Authorises an operator for all partitions of `msg.sender`
     /// @param _operator An address which is being authorised
-    function authorizeOperator(address _operator) external {
-        approvals[msg.sender][_operator] = true;
+    function authorizeOperator(address _operator) external onlyOwner {
+        operatorForAllPartitions[msg.sender][_operator] = true;
         emit AuthorizedOperator(_operator, msg.sender);
     }
 
     /// @notice Revokes authorisation of an operator previously given for all partitions of `msg.sender`
     /// @param _operator An address which is being de-authorised
-    function revokeOperator(address _operator) external {
-        approvals[msg.sender][_operator] = false;
+    function revokeOperator(address _operator) external onlyOwner {
+        operatorForAllPartitions[msg.sender][_operator] = false;
         emit RevokedOperator(_operator, msg.sender);
     }
 
@@ -79,8 +80,8 @@ contract ERC1410Operator is ERC1410Basic {
     function authorizeOperatorByPartition(
         bytes32 _partition,
         address _operator
-    ) external {
-        partitionApprovals[msg.sender][_partition][_operator] = true;
+    ) external onlyOwner {
+        operatorForThisPartition[msg.sender][_partition][_operator] = true;
         emit AuthorizedOperatorByPartition(_partition, _operator, msg.sender);
     }
 
@@ -90,8 +91,8 @@ contract ERC1410Operator is ERC1410Basic {
     function revokeOperatorByPartition(
         bytes32 _partition,
         address _operator
-    ) external {
-        partitionApprovals[msg.sender][_partition][_operator] = false;
+    ) external onlyOwner {
+        operatorForThisPartition[msg.sender][_partition][_operator] = false;
         emit RevokedOperatorByPartition(_partition, _operator, msg.sender);
     }
 
@@ -100,16 +101,12 @@ contract ERC1410Operator is ERC1410Basic {
     /// @param _from The address from which to transfer tokens from
     /// @param _to The address to which to transfer tokens to
     /// @param _value The amount of tokens to transfer from `_partition`
-    /// @param _data Additional data attached to the transfer of tokens
-    /// @param _operatorData Additional data attached to the transfer of tokens by the operator
     /// @return The partition to which the transferred tokens were allocated for the _to address
     function operatorTransferByPartition(
         bytes32 _partition,
         address _from,
         address _to,
-        uint256 _value,
-        bytes calldata _data,
-        bytes calldata _operatorData
+        uint256 _value
     ) external returns (bytes32) {
         // TODO: Add a functionality of verifying the `_operatorData`
         // TODO: Add a functionality of verifying the `_data`
@@ -118,14 +115,7 @@ contract ERC1410Operator is ERC1410Basic {
                 isOperatorForPartition(_partition, msg.sender, _from),
             "Not authorised"
         );
-        _transferByPartition(
-            _from,
-            _to,
-            _value,
-            _partition,
-            _data,
-            msg.sender,
-            _operatorData
-        );
+        _transferByPartition(_from, _to, _value, _partition);
+        return _partition;
     }
 }

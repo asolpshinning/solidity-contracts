@@ -126,15 +126,12 @@ interface IERC1410 {
     event IssuedByPartition(
         bytes32 indexed partition,
         address indexed to,
-        uint256 value,
-        bytes data
+        uint256 value
     );
     event RedeemedByPartition(
         bytes32 indexed partition,
         address indexed operator,
         address indexed from,
-        uint256 value,
-        bytes data,
-        bytes operatorData
+        uint256 value
     );
 }
