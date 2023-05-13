@@ -6,8 +6,10 @@ import "./openzeppelin/SafeMath.sol";
 import "./ERC1410Operator.sol";
 import "./IERC1410.sol";
 import "./Ownable.sol";
+import "./ERC1410Snapshot.sol";
+import "./ERC1410Whitelist.sol";
 
-abstract contract ERC1410Standard is ERC1410Operator {
+contract ERC1410Standard is ERC1410Operator, ERC1410Snapshot, ERC1410Whitelist {
     using SafeMath for uint256;
 
     // Declare the RedeemedByPartition event
@@ -71,8 +73,6 @@ abstract contract ERC1410Standard is ERC1410Operator {
         address _tokenHolder,
         uint256 _value
     ) external {
-        // Add the function to validate the `_data` parameter
-        // TODO: Add a functionality of verifying the `_operatorData`
         require(_tokenHolder != address(0), "Invalid from address");
         require(
             isOperator(msg.sender, _tokenHolder) ||
@@ -122,6 +122,25 @@ abstract contract ERC1410Standard is ERC1410Operator {
         }
         delete partitionToIndex[_holder][_partition];
         partitions[_holder].pop();
+    }
+
+    /// @notice Transfers the ownership of tokens from a specified partition from one address to another address
+    /// @param _partition The partition from which to transfer tokens
+    /// @param _to The address to which to transfer tokens to
+    /// @param _value The amount of tokens to transfer from `_partition`
+    /// @return The partition to which the transferred tokens were allocated for the _to address
+    function operatorTransferByPartition(
+        bytes32 _partition,
+        address _from,
+        address _to,
+        uint256 _value
+    )
+        external
+        onlyOperatorForPartition(_partition, msg.sender)
+        returns (bytes32)
+    {
+        _transferByPartition(_from, _to, _value, _partition);
+        return _partition;
     }
 
     function _validateParams(bytes32 _partition, uint256 _value) internal pure {

@@ -56,66 +56,63 @@ abstract contract ERC1410Operator is ERC1410Basic, Ownable {
         return operatorForThisPartition[_tokenHolder][_partition][_operator];
     }
 
+    modifier onlyOperatorForPartition(
+        bytes32 _partition,
+        address _tokenHolder
+    ) {
+        require(
+            operatorForThisPartition[_tokenHolder][_partition][msg.sender] ||
+                operatorForAllPartitions[_tokenHolder][msg.sender],
+            "Not an operator for this partition"
+        );
+        _;
+    }
+
     ///////////////////////
     /// Operator Management
     ///////////////////////
 
     /// @notice Authorises an operator for all partitions of `msg.sender`
     /// @param _operator An address which is being authorised
-    function authorizeOperator(address _operator) external onlyOwner {
-        operatorForAllPartitions[msg.sender][_operator] = true;
-        emit AuthorizedOperator(_operator, msg.sender);
+    function authorizeOperator(
+        address _operator,
+        address tokenHolder
+    ) external onlyOwner {
+        operatorForAllPartitions[tokenHolder][_operator] = true;
+        emit AuthorizedOperator(_operator, tokenHolder);
     }
 
     /// @notice Revokes authorisation of an operator previously given for all partitions of `msg.sender`
     /// @param _operator An address which is being de-authorised
-    function revokeOperator(address _operator) external onlyOwner {
-        operatorForAllPartitions[msg.sender][_operator] = false;
-        emit RevokedOperator(_operator, msg.sender);
+    function revokeOperator(
+        address _operator,
+        address tokenHolder
+    ) external onlyOwner {
+        operatorForAllPartitions[tokenHolder][_operator] = false;
+        emit RevokedOperator(_operator, tokenHolder);
     }
 
-    /// @notice Authorises an operator for a given partition of `msg.sender`
+    /// @notice Authorises an operator for a given partition of `tokenHolder`
     /// @param _partition The partition to which the operator is authorised
     /// @param _operator An address which is being authorised
     function authorizeOperatorByPartition(
         bytes32 _partition,
-        address _operator
+        address _operator,
+        address tokenHolder
     ) external onlyOwner {
-        operatorForThisPartition[msg.sender][_partition][_operator] = true;
-        emit AuthorizedOperatorByPartition(_partition, _operator, msg.sender);
+        operatorForThisPartition[tokenHolder][_partition][_operator] = true;
+        emit AuthorizedOperatorByPartition(_partition, _operator, tokenHolder);
     }
 
-    /// @notice Revokes authorisation of an operator previously given for a specified partition of `msg.sender`
+    /// @notice Revokes authorisation of an operator previously given for a specified partition of `tokenHolder`
     /// @param _partition The partition to which the operator is de-authorised
     /// @param _operator An address which is being de-authorised
     function revokeOperatorByPartition(
         bytes32 _partition,
-        address _operator
+        address _operator,
+        address tokenHolder
     ) external onlyOwner {
-        operatorForThisPartition[msg.sender][_partition][_operator] = false;
-        emit RevokedOperatorByPartition(_partition, _operator, msg.sender);
-    }
-
-    /// @notice Transfers the ownership of tokens from a specified partition from one address to another address
-    /// @param _partition The partition from which to transfer tokens
-    /// @param _from The address from which to transfer tokens from
-    /// @param _to The address to which to transfer tokens to
-    /// @param _value The amount of tokens to transfer from `_partition`
-    /// @return The partition to which the transferred tokens were allocated for the _to address
-    function operatorTransferByPartition(
-        bytes32 _partition,
-        address _from,
-        address _to,
-        uint256 _value
-    ) external returns (bytes32) {
-        // TODO: Add a functionality of verifying the `_operatorData`
-        // TODO: Add a functionality of verifying the `_data`
-        require(
-            isOperator(msg.sender, _from) ||
-                isOperatorForPartition(_partition, msg.sender, _from),
-            "Not authorised"
-        );
-        _transferByPartition(_from, _to, _value, _partition);
-        return _partition;
+        operatorForThisPartition[tokenHolder][_partition][_operator] = false;
+        emit RevokedOperatorByPartition(_partition, _operator, tokenHolder);
     }
 }

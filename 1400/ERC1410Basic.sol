@@ -85,20 +85,6 @@ abstract contract ERC1410Basic {
         return partitionsList;
     }
 
-    /// @notice Transfers the ownership of tokens from a specified partition from one address to another address
-    /// @param _partition The partition from which to transfer tokens
-    /// @param _to The address to which to transfer tokens to
-    /// @param _value The amount of tokens to transfer from `_partition`
-    /// @return The partition to which the transferred tokens were allocated for the _to address
-    function transferByPartition(
-        bytes32 _partition,
-        address _to,
-        uint256 _value
-    ) external returns (bytes32) {
-        _transferByPartition(msg.sender, _to, _value, _partition);
-        return _partition;
-    }
-
     /// @notice The standard provides an on-chain function to determine whether a transfer will succeed,
     /// and return details indicating the reason if the transfer is not valid.
     /// @param _from The address from whom the tokens get transferred.

@@ -1,121 +1,111 @@
-// SPDX-License-Identifier: MIT
-
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.19;
 
-import "./ERC1410Standard.sol";
-import "./ERC1410Whitelist.sol";
-import "./openzeppelin/utils/Arrays.sol";
-import "./openzeppelin/utils/Counters.sol";
+import "./openzeppelin/SafeMath.sol";
 
-contract ERC1410Snapshot is ERC1410Standard, ERC1410Whitelist {
-    using Arrays for uint256[];
-    using Counters for Counters.Counter;
+abstract contract ERC1410Snapshot {
+    using SafeMath for uint256;
 
-    // Snapshotted values have arrays of ids and the value corresponding to that id.
-    struct Snapshots {
-        uint256[] ids;
-        uint256[] values;
+    /**
+     * @dev `Snapshot` is the structure that attaches a block number to a
+     * given value. The block number attached is the one that last changed the value.
+     */
+    struct Snapshot {
+        uint256 blockNum; // `blockNum` is the block number at which the value was generated from
+        uint256 value; // `value` is the amount of tokens at a specific block number
     }
 
-    // Mapping from (account, partition) to snapshots
-    mapping(address => mapping(bytes32 => Snapshots))
-        private _accountBalanceSnapshots;
+    // `_snapshotBalances` maps from partition to owner to snapshot array.
+    mapping(bytes32 => mapping(address => Snapshot[]))
+        private _snapshotBalances;
 
-    Snapshots private _totalSupplySnapshots;
+    // Tracks the history of the `totalSupply` of each partition of the token
+    mapping(bytes32 => Snapshot[]) private _snapshotTotalSupply;
 
-    // Snapshot ids increase monotonically, with the first value being 1. An id of 0 is invalid.
-    Counters.Counter private _currentSnapshotId;
-
-    event Snapshot(uint256 id);
-
-    function _snapshot() internal virtual returns (uint256) {
-        _currentSnapshotId.increment();
-
-        uint256 currentId = _getCurrentSnapshotId();
-        emit Snapshot(currentId);
-        return currentId;
-    }
-
-    function _getCurrentSnapshotId() internal view virtual returns (uint256) {
-        return _currentSnapshotId.current();
+    /**
+     * @dev Queries the balance of `_owner` at a specific `_blockNumber` for a given partition.
+     * @param partition The partition from which the balance will be retrieved
+     * @param _owner The address from which the balance will be retrieved
+     * @param _blockNumber The block number when the balance is queried
+     * @return The balance at `_blockNumber`
+     */
+    function balanceOfAt(
+        bytes32 partition,
+        address _owner,
+        uint256 _blockNumber
+    ) public view returns (uint256) {
+        return _getValueAt(_snapshotBalances[partition][_owner], _blockNumber);
     }
 
     /**
-     * @dev Retrieves the balance of `account` at the time `snapshotId` was created.
+     * @dev Total amount of tokens from a specific partition at a specific `_blockNumber`.
+     * @param partition The partition from which to retrieve the total supply
+     * @param _blockNumber The block number when the totalSupply is queried
+     * @return The total amount of tokens from `partition` at `_blockNumber`
      */
-    function balanceOfAt(
-        address account,
-        bytes32 partition,
-        uint256 snapshotId
-    ) public view virtual returns (uint256) {
-        (bool snapshotted, uint256 value) = _valueAt(
-            snapshotId,
-            _accountBalanceSnapshots[account][partition]
-        );
-
-        return snapshotted ? value : _balanceOfByPartition(partition, account);
-    }
-
     function totalSupplyAt(
-        uint256 snapshotId
-    ) public view virtual returns (uint256) {
-        (bool snapshotted, uint256 value) = _valueAt(
-            snapshotId,
-            _totalSupplySnapshots
-        );
-
-        return snapshotted ? value : _totalSupply;
+        bytes32 partition,
+        uint256 _blockNumber
+    ) public view returns (uint256) {
+        return _getValueAt(_snapshotTotalSupply[partition], _blockNumber);
     }
 
-    function _valueAt(
-        uint256 snapshotId,
-        Snapshots storage snapshots
-    ) private view returns (bool, uint256) {
-        require(snapshotId > 0, "ERC1410Snapshot: id is 0");
-        require(
-            snapshotId <= _getCurrentSnapshotId(),
-            "ERC1410Snapshot: nonexistent id"
-        );
-        uint256 index = snapshots.ids.findUpperBound(snapshotId);
-        if (index == snapshots.ids.length) {
-            return (false, 0);
+    /**
+     * @dev `updateValueAtNow` used to update the `_snapshotBalances` map and the `_snapshotTotalSupply`
+     * @param partition The partition from which to update the total supply
+     * @param pastSnapshots The history of snapshots being updated
+     * @param _value The new number of tokens
+     */
+    function _updateValueAtNow(
+        Snapshot[] storage pastSnapshots,
+        bytes32 partition,
+        uint256 _value
+    ) internal {
+        if (
+            (pastSnapshots.length == 0) ||
+            (pastSnapshots[pastSnapshots.length.sub(1)].blockNum < block.number)
+        ) {
+            pastSnapshots.push(Snapshot(block.number, _value));
         } else {
-            return (true, snapshots.values[index]);
+            pastSnapshots[pastSnapshots.length.sub(1)].value = _value;
         }
+        _snapshotTotalSupply[partition] = pastSnapshots;
     }
 
-    function _updateAccountSnapshot(
-        address account,
-        bytes32 partition
-    ) private {
-        _updateSnapshot(
-            _accountBalanceSnapshots[account][partition],
-            _balanceOfByPartition(partition, account)
-        );
-    }
+    /**
+     * @dev `getValueAt` retrieves the number of tokens at a given block number
+     * @param pastShots The history of snapshot values being queried
+     * @param _blockNum The block number to retrieve the value at
+     * @return The number of tokens being queried
+     */
+    function _getValueAt(
+        Snapshot[] storage pastShots,
+        uint256 _blockNum
+    ) internal view returns (uint256) {
+        if (pastShots.length == 0) return 0;
 
-    function _updateTotalSupplySnapshot() private {
-        _updateSnapshot(_totalSupplySnapshots, _totalSupply);
-    }
-
-    function _updateSnapshot(
-        Snapshots storage snapshots,
-        uint256 currentValue
-    ) private {
-        uint256 currentId = _getCurrentSnapshotId();
-        if (_lastSnapshotId(snapshots.ids) < currentId) {
-            snapshots.ids.push(currentId);
-            snapshots.values.push(currentValue);
+        // Shortcut for the actual value
+        if (_blockNum >= pastShots[pastShots.length.sub(1)].blockNum) {
+            return pastShots[pastShots.length.sub(1)].value;
         }
-    }
 
-    function _lastSnapshotId(
-        uint256[] storage ids
-    ) private view returns (uint256) {
-        if (ids.length == 0) {
+        if (_blockNum < pastShots[0].blockNum) {
             return 0;
-        } else {
-            return ids[ids.length - 1];
         }
+
+        // Binary search of the value in the array
+        uint256 min;
+        uint256 max = pastShots.length.sub(1);
+
+        while (max > min) {
+            uint256 mid = (max.add(min).add(1)).div(2);
+            if (pastShots[mid].blockNum <= _blockNum) {
+                min = mid;
+            } else {
+                max = mid.sub(1);
+            }
+        }
+
+        return pastShots[min].value;
     }
 }
