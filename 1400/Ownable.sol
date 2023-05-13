@@ -39,7 +39,7 @@ abstract contract Ownable {
      * @dev Throws if called by any account other than the owner.
      */
     modifier onlyOwner() {
-        require(isOwner(), "Caller is not the owner");
+        require(_isOwner(), "Caller is not the owner");
         _;
     }
 
@@ -48,7 +48,7 @@ abstract contract Ownable {
      */
     modifier onlyOwnerOrManager() {
         require(
-            isOwner() || isManager(msg.sender),
+            _isOwner() || _isManager(msg.sender),
             "Caller is not the owner or manager"
         );
         _;
@@ -57,7 +57,7 @@ abstract contract Ownable {
     /**
      * @return true if `msg.sender` is the owner of the contract.
      */
-    function isOwner() public view returns (bool) {
+    function _isOwner() internal view returns (bool) {
         return msg.sender == _owner;
     }
 
@@ -65,7 +65,7 @@ abstract contract Ownable {
      * @dev Checks if the address is a manager
      * @param _manager The address to check
      */
-    function isManager(address _manager) public view returns (bool) {
+    function _isManager(address _manager) internal view returns (bool) {
         return _managers[_manager];
     }
 
@@ -75,7 +75,7 @@ abstract contract Ownable {
      */
     function _addManager(address _manager) internal {
         require(_manager != address(0), "Cannot add zero address as manager");
-        require(!isManager(_manager), "Address is already a manager");
+        require(!_isManager(_manager), "Address is already a manager");
         _managers[_manager] = true;
         emit ManagerAdded(_manager);
     }
@@ -85,7 +85,7 @@ abstract contract Ownable {
      * @param _manager The address of the manager
      */
     function _removeManager(address _manager) internal {
-        require(isManager(_manager), "Address is not a manager");
+        require(_isManager(_manager), "Address is not a manager");
         _managers[_manager] = false;
         emit ManagerRemoved(_manager);
     }

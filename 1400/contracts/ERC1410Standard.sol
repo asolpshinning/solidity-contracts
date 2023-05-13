@@ -26,6 +26,21 @@ contract ERC1410Standard is ERC1410Operator, ERC1410Whitelist {
         uint256 value
     );
 
+    /**
+     * @return true if `msg.sender` is the owner of the contract.
+     */
+    function isOwner() external view returns (bool) {
+        return _isOwner();
+    }
+
+    /**
+     * @dev Checks if the address is a manager
+     * @param _manager The address to check
+     */
+    function isManager(address _manager) external view returns (bool) {
+        return _isManager(_manager);
+    }
+
     /// @notice Increases totalSupply and the corresponding amount of the specified owners partition
     /// @param _partition The partition to allocate the increase in balance
     /// @param _tokenHolder The token holder whose balance should be increased

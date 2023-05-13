@@ -10,6 +10,7 @@ contract DividendsDistribution {
     using SafeMath for uint256;
 
     struct Dividend {
+        bytes32 partition;
         uint256 blockNumber;
         uint256 exDividendDate;
         uint256 recordDate;
@@ -24,7 +25,6 @@ contract DividendsDistribution {
     }
 
     IERC1410 public sharesToken;
-    address public issuer;
     uint256 public reclaim_time;
     mapping(address => uint256) public balances;
     Dividend[] public dividends;
@@ -34,6 +34,7 @@ contract DividendsDistribution {
         uint256 dividendIndex,
         uint256 blockNumber,
         uint256 amount,
+        bytes32 partition,
         bool isERC20
     );
     event DividendClaimed(
@@ -48,14 +49,16 @@ contract DividendsDistribution {
         uint256 amount
     );
 
-    modifier onlyIssuer() {
-        require(msg.sender == issuer, "Sender is not the issuer");
+    modifier onlyOwnerOrManager() {
+        require(
+            sharesToken.isOwner() || sharesToken.isManager(msg.sender),
+            "Sender is not the issuer"
+        );
         _;
     }
 
-    constructor(IERC1410 _sharesToken, address _issuer, uint256 _reclaim_time) {
+    constructor(IERC1410 _sharesToken, uint256 _reclaim_time) {
         sharesToken = _sharesToken;
-        issuer = _issuer;
         reclaim_time = _reclaim_time;
     }
 
@@ -65,15 +68,19 @@ contract DividendsDistribution {
         uint256 _recordDate,
         uint256 _payoutDate,
         uint256 _amount,
-        address _payoutToken
-    ) external onlyIssuer {
+        address _payoutToken,
+        bytes32 _partition
+    ) external onlyOwnerOrManager {
         require(_amount > 0, "Amount must be greater than zero");
         require(
             _payoutDate > block.timestamp,
             "Payout date must be in the future"
         );
 
-        uint256 totalSupplyOfShares = sharesToken.totalSupply();
+        uint256 totalSupplyOfShares = sharesToken.totalSupplyAt(
+            _partition,
+            _blockNumber
+        );
         require(
             totalSupplyOfShares > 0,
             "Total supply of shares must be greater than zero"
@@ -92,6 +99,7 @@ contract DividendsDistribution {
         dividends.push();
         Dividend storage newDividend = dividends[dividendIndex];
         newDividend.blockNumber = _blockNumber;
+        newDividend.partition = _partition;
         newDividend.exDividendDate = _exDividendDate;
         newDividend.recordDate = _recordDate;
         newDividend.payoutDate = _payoutDate;
@@ -107,12 +115,16 @@ contract DividendsDistribution {
             dividendIndex,
             _blockNumber,
             _amount,
+            _partition,
             _payoutToken != address(0)
         );
     }
 
     function claimDividend(uint256 _dividendIndex) external {
-        require(_dividendIndex < dividends.length, "Invalid dividend index");
+        require(
+            _dividendIndex < dividends.length && _dividendIndex >= 0,
+            "Invalid dividend index"
+        );
 
         Dividend storage dividend = dividends[_dividendIndex];
         require(
@@ -125,7 +137,11 @@ contract DividendsDistribution {
         );
         require(!dividend.recycled, "Dividend has been recycled");
 
-        uint256 shareBalance = sharesToken.balanceOf(msg.sender);
+        uint256 shareBalance = sharesToken.balanceOfAt(
+            dividend.partition,
+            msg.sender,
+            dividend.blockNumber
+        );
         require(shareBalance > 0, "Sender does not hold any shares");
 
         uint256 claimAmount = dividend.amount.mul(shareBalance).div(
@@ -156,7 +172,9 @@ contract DividendsDistribution {
         );
     }
 
-    function recycleDividend(uint256 _dividendIndex) external onlyIssuer {
+    function recycleDividend(
+        uint256 _dividendIndex
+    ) external onlyOwnerOrManager {
         require(_dividendIndex < dividends.length, "Invalid dividend index");
 
         Dividend storage dividend = dividends[_dividendIndex];
@@ -180,9 +198,9 @@ contract DividendsDistribution {
                 dividend.payoutToken != address(0),
                 "Invalid payout token address"
             );
-            IERC20(dividend.payoutToken).transfer(issuer, remainingAmount);
+            IERC20(dividend.payoutToken).transfer(msg.sender, remainingAmount);
         } else {
-            payable(issuer).transfer(remainingAmount);
+            payable(msg.sender).transfer(remainingAmount);
         }
 
         emit DividendRecycled(msg.sender, _dividendIndex, remainingAmount);
@@ -203,6 +221,7 @@ contract DividendsDistribution {
             address,
             bool,
             uint256,
+            bytes32,
             bool
         )
     {
@@ -219,6 +238,7 @@ contract DividendsDistribution {
             dividend.payoutToken,
             dividend.isERC20Payout,
             dividend.amountRemaining,
+            dividend.partition,
             dividend.recycled
         );
     }
@@ -241,7 +261,11 @@ contract DividendsDistribution {
             return 0;
         }
 
-        uint256 shareBalance = sharesToken.balanceOf(_address);
+        uint256 shareBalance = sharesToken.balanceOfAt(
+            dividend.partition,
+            _address,
+            dividend.blockNumber
+        );
         uint256 claimAmount = dividend.amount.mul(shareBalance).div(
             dividend.totalSupplyOfShares
         );

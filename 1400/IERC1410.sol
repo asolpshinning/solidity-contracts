@@ -53,6 +53,11 @@ interface IERC1410 {
         bytes calldata _data
     ) external view returns (bytes1, bytes32, bytes32);
 
+    // Owner / Manager Information
+    function isOwner() external view returns (bool);
+
+    function isManager(address _manager) external view returns (bool);
+
     // Operator Information
     function isOperator(
         address _operator,
