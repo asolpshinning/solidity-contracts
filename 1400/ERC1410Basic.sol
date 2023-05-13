@@ -4,8 +4,9 @@ pragma solidity ^0.8.18;
 
 import "./openzeppelin/SafeMath.sol";
 import "./openzeppelin/KindMath.sol";
+import "./ERC1410Snapshot.sol";
 
-abstract contract ERC1410Basic {
+abstract contract ERC1410Basic is ERC1410Snapshot {
     using SafeMath for uint256;
 
     // Represents a fungible set of tokens.
@@ -21,6 +22,9 @@ abstract contract ERC1410Basic {
 
     // Mapping from investor to their partitions
     mapping(address => Partition[]) partitions;
+
+    // Mapping from partition to total supply
+    mapping(bytes32 => uint256) partitionTotalSupply;
 
     // Mapping from (investor, partition) to index of corresponding partition in partitions
     // @dev Stored value is always greater by 1 to avoid the 0 value of every index
@@ -38,6 +42,17 @@ abstract contract ERC1410Basic {
      */
     function totalSupply() external view returns (uint256) {
         return _totalSupply;
+    }
+
+    /**
+     * @dev Total number of tokens in existence of a given partition
+     * @param _partition The partition for which to query the total supply
+     * @return Total supply of a given partition
+     */
+    function _totalSupplyByPartition(
+        bytes32 _partition
+    ) internal view returns (uint256) {
+        return partitionTotalSupply[_partition];
     }
 
     /// @notice Counts the sum of all partitions balances assigned to an owner
@@ -148,6 +163,27 @@ abstract contract ERC1410Basic {
             _value
         );
         balances[_to] = balances[_to].add(_value);
+
+        // take snapshot of the state after transfer
+        _takeSnapshot(
+            _getHolderSnapshots(_partition, _from),
+            _partition,
+            _balanceOfByPartition(_partition, _from),
+            true
+        );
+        _takeSnapshot(
+            _getHolderSnapshots(_partition, _to),
+            _partition,
+            _balanceOfByPartition(_partition, _to),
+            true
+        );
+        _takeSnapshot(
+            _getTotalSupplySnapshots(_partition),
+            _partition,
+            _totalSupplyByPartition(_partition),
+            false
+        );
+
         // Emit transfer event.
         emit TransferByPartition(_partition, _from, _to, _value);
     }

@@ -33,8 +33,12 @@ abstract contract ERC1410Snapshot {
         bytes32 partition,
         address _owner,
         uint256 _blockNumber
-    ) public view returns (uint256) {
-        return _getValueAt(_snapshotBalances[partition][_owner], _blockNumber);
+    ) external view returns (uint256) {
+        return
+            _getSnapshotValueAt(
+                _snapshotBalances[partition][_owner],
+                _blockNumber
+            );
     }
 
     /**
@@ -46,20 +50,23 @@ abstract contract ERC1410Snapshot {
     function totalSupplyAt(
         bytes32 partition,
         uint256 _blockNumber
-    ) public view returns (uint256) {
-        return _getValueAt(_snapshotTotalSupply[partition], _blockNumber);
+    ) external view returns (uint256) {
+        return
+            _getSnapshotValueAt(_snapshotTotalSupply[partition], _blockNumber);
     }
 
     /**
-     * @dev `updateValueAtNow` used to update the `_snapshotBalances` map and the `_snapshotTotalSupply`
+     * @dev `takeSnapshot` used to update the `_snapshotBalances` map and the `_snapshotTotalSupply`
      * @param partition The partition from which to update the total supply
      * @param pastSnapshots The history of snapshots being updated
      * @param _value The new number of tokens
+     * @param forHolders `true` if function is called to take snapshot of balance of the token holders, `false` if for `totalSupply`
      */
-    function _updateValueAtNow(
+    function _takeSnapshot(
         Snapshot[] storage pastSnapshots,
         bytes32 partition,
-        uint256 _value
+        uint256 _value,
+        bool forHolders
     ) internal {
         if (
             (pastSnapshots.length == 0) ||
@@ -69,16 +76,20 @@ abstract contract ERC1410Snapshot {
         } else {
             pastSnapshots[pastSnapshots.length.sub(1)].value = _value;
         }
-        _snapshotTotalSupply[partition] = pastSnapshots;
+        if (forHolders) {
+            _snapshotBalances[partition][msg.sender] = pastSnapshots;
+        } else {
+            _snapshotTotalSupply[partition] = pastSnapshots;
+        }
     }
 
     /**
-     * @dev `getValueAt` retrieves the number of tokens at a given block number
+     * @dev `getSnapshotValueAt` retrieves the number of tokens at a given block number
      * @param pastShots The history of snapshot values being queried
      * @param _blockNum The block number to retrieve the value at
      * @return The number of tokens being queried
      */
-    function _getValueAt(
+    function _getSnapshotValueAt(
         Snapshot[] storage pastShots,
         uint256 _blockNum
     ) internal view returns (uint256) {
@@ -107,5 +118,29 @@ abstract contract ERC1410Snapshot {
         }
 
         return pastShots[min].value;
+    }
+
+    /**
+     * @dev `getPastSnapshots` retrieves the past snapshots of the balance of a tokenholder
+     * @param partition The partition to retrieve the past snapshots
+     * @param _owner The address of the tokenholder
+     **/
+    function _getHolderSnapshots(
+        bytes32 partition,
+        address _owner
+    ) internal view returns (Snapshot[] storage) {
+        return _snapshotBalances[partition][_owner];
+    }
+
+    /**
+     * @dev `getPastTotalSupplySnapshots` retrieves the past snapshots of the total supply of a partition
+     * @param partition The partition to retrieve the past total supply snapshots
+     * @return The past snapshots of the total supply of a partition
+     *
+     **/
+    function _getTotalSupplySnapshots(
+        bytes32 partition
+    ) internal view returns (Snapshot[] storage) {
+        return _snapshotTotalSupply[partition];
     }
 }

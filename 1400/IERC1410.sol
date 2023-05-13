@@ -6,6 +6,17 @@ interface IERC1410 {
     // Token Information
     function balanceOf(address _tokenHolder) external view returns (uint256);
 
+    function balanceOfAt(
+        bytes32 partition,
+        address _owner,
+        uint256 _blockNumber
+    ) external view returns (uint256);
+
+    function totalSupplyAt(
+        bytes32 partition,
+        uint256 _blockNumber
+    ) external view returns (uint256);
+
     function balanceOfByPartition(
         bytes32 _partition,
         address _tokenHolder

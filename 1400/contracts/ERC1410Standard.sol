@@ -6,10 +6,9 @@ import "../openzeppelin/SafeMath.sol";
 import "../ERC1410Operator.sol";
 import "../IERC1410.sol";
 import "../Ownable.sol";
-import "../ERC1410Snapshot.sol";
 import "../ERC1410Whitelist.sol";
 
-contract ERC1410Standard is ERC1410Operator, ERC1410Snapshot, ERC1410Whitelist {
+contract ERC1410Standard is ERC1410Operator, ERC1410Whitelist {
     using SafeMath for uint256;
 
     // Declare the RedeemedByPartition event
@@ -35,7 +34,7 @@ contract ERC1410Standard is ERC1410Operator, ERC1410Snapshot, ERC1410Whitelist {
         bytes32 _partition,
         address _tokenHolder,
         uint256 _value
-    ) external onlyOwner {
+    ) external onlyOwnerOrManager {
         // Add the function to validate the `_data` parameter
         _validateParams(_partition, _value);
         require(_tokenHolder != address(0), "Invalid token receiver");
@@ -77,7 +76,7 @@ contract ERC1410Standard is ERC1410Operator, ERC1410Snapshot, ERC1410Whitelist {
         require(
             isOperator(msg.sender, _tokenHolder) ||
                 isOperatorForPartition(_partition, msg.sender, _tokenHolder),
-            "Not authorised"
+            "Not authorized"
         );
         _redeemByPartition(_partition, _tokenHolder, msg.sender, _value);
     }
@@ -105,6 +104,18 @@ contract ERC1410Standard is ERC1410Operator, ERC1410Snapshot, ERC1410Whitelist {
         }
         balances[_from] = balances[_from].sub(_value);
         _totalSupply = _totalSupply.sub(_value);
+        _takeSnapshot(
+            _getHolderSnapshots(_partition, _from),
+            _partition,
+            _balanceOfByPartition(_partition, _from),
+            true
+        );
+        _takeSnapshot(
+            _getTotalSupplySnapshots(_partition),
+            _partition,
+            _totalSupplyByPartition(_partition),
+            false
+        );
         emit RedeemedByPartition(_partition, _operator, _from, _value);
     }
 
@@ -122,6 +133,21 @@ contract ERC1410Standard is ERC1410Operator, ERC1410Snapshot, ERC1410Whitelist {
         }
         delete partitionToIndex[_holder][_partition];
         partitions[_holder].pop();
+
+        // take snapshot of the partition balance of the holder
+        _takeSnapshot(
+            _getHolderSnapshots(_partition, _holder),
+            _partition,
+            _balanceOfByPartition(_partition, _holder),
+            true
+        );
+        // take snapshot of total supply
+        _takeSnapshot(
+            _getTotalSupplySnapshots(_partition),
+            _partition,
+            _totalSupplyByPartition(_partition),
+            false
+        );
     }
 
     /// @notice Transfers the ownership of tokens from a specified partition from one address to another address
@@ -151,6 +177,12 @@ contract ERC1410Standard is ERC1410Operator, ERC1410Snapshot, ERC1410Whitelist {
     function removeManager(address _manager) public onlyOwner {
         _removeManager(_manager);
         _removeFromWhitelist(_manager);
+    }
+
+    function totalSupplyByPartition(
+        bytes32 _partition
+    ) external view returns (uint256) {
+        return _totalSupplyByPartition(_partition);
     }
 
     function _validateParams(bytes32 _partition, uint256 _value) internal pure {
