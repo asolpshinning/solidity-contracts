@@ -1,13 +1,13 @@
 /* SPDX-License-Identifier: UNLICENSED */
 
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.13;
 
-import "./openzeppelin/SafeMath.sol";
-import "./ERC1410Operator.sol";
-import "./IERC1410.sol";
-import "./Ownable.sol";
-import "./ERC1410Snapshot.sol";
-import "./ERC1410Whitelist.sol";
+import "../openzeppelin/SafeMath.sol";
+import "../ERC1410Operator.sol";
+import "../IERC1410.sol";
+import "../Ownable.sol";
+import "../ERC1410Snapshot.sol";
+import "../ERC1410Whitelist.sol";
 
 contract ERC1410Standard is ERC1410Operator, ERC1410Snapshot, ERC1410Whitelist {
     using SafeMath for uint256;
@@ -141,6 +141,16 @@ contract ERC1410Standard is ERC1410Operator, ERC1410Snapshot, ERC1410Whitelist {
     {
         _transferByPartition(_from, _to, _value, _partition);
         return _partition;
+    }
+
+    function addManager(address _manager) public onlyOwner {
+        _addManager(_manager);
+        _addToWhitelist(_manager);
+    }
+
+    function removeManager(address _manager) public onlyOwner {
+        _removeManager(_manager);
+        _removeFromWhitelist(_manager);
     }
 
     function _validateParams(bytes32 _partition, uint256 _value) internal pure {

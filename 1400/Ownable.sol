@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: UNLICENSED */
 
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.18;
 
 /**
  * @title Ownable
@@ -9,11 +9,15 @@ pragma solidity ^0.8.19;
  */
 abstract contract Ownable {
     address private _owner;
+    mapping(address => bool) private _managers;
 
     event OwnershipTransferred(
         address indexed previousOwner,
         address indexed newOwner
     );
+
+    event ManagerAdded(address indexed manager);
+    event ManagerRemoved(address indexed manager);
 
     /**
      * @dev The Ownable constructor sets the original `owner` of the contract to the sender
@@ -35,7 +39,18 @@ abstract contract Ownable {
      * @dev Throws if called by any account other than the owner.
      */
     modifier onlyOwner() {
-        require(isOwner());
+        require(isOwner(), "Caller is not the owner");
+        _;
+    }
+
+    /**
+     * @dev Modifier for owner or manager
+     */
+    modifier onlyOwnerOrManager() {
+        require(
+            isOwner() || isManager(msg.sender),
+            "Caller is not the owner or manager"
+        );
         _;
     }
 
@@ -44,6 +59,35 @@ abstract contract Ownable {
      */
     function isOwner() public view returns (bool) {
         return msg.sender == _owner;
+    }
+
+    /**
+     * @dev Checks if the address is a manager
+     * @param _manager The address to check
+     */
+    function isManager(address _manager) public view returns (bool) {
+        return _managers[_manager];
+    }
+
+    /**
+     * @dev Allows the current owner to add a manager
+     * @param _manager The address of the manager
+     */
+    function _addManager(address _manager) internal {
+        require(_manager != address(0), "Cannot add zero address as manager");
+        require(!isManager(_manager), "Address is already a manager");
+        _managers[_manager] = true;
+        emit ManagerAdded(_manager);
+    }
+
+    /**
+     * @dev Allows the current owner to remove a manager
+     * @param _manager The address of the manager
+     */
+    function _removeManager(address _manager) internal {
+        require(isManager(_manager), "Address is not a manager");
+        _managers[_manager] = false;
+        emit ManagerRemoved(_manager);
     }
 
     /**

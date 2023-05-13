@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.18;
 
 import "./Ownable.sol";
 
@@ -14,11 +14,16 @@ abstract contract ERC1410Whitelist is Ownable {
     // Event to notify when an address is removed from the whitelist
     event AddressRemovedFromWhitelist(address indexed account);
 
+    constructor() {
+        // add owner to whitelist
+        _addToWhitelist(msg.sender);
+    }
+
     /**
      * @dev Add an address to the whitelist.
      * @param account The address to be added to the whitelist.
      */
-    function addToWhitelist(address account) public virtual onlyOwner {
+    function _addToWhitelist(address account) internal onlyOwnerOrManager {
         require(account != address(0), "ERC1410WhiteList: invalid address");
         require(
             !_whitelist[account],
@@ -28,11 +33,15 @@ abstract contract ERC1410Whitelist is Ownable {
         emit AddressAddedToWhitelist(account);
     }
 
+    function addToWhitelist(address account) public virtual onlyOwnerOrManager {
+        _addToWhitelist(account);
+    }
+
     /**
      * @dev Remove an address from the whitelist.
      * @param account The address to be removed from the whitelist.
      */
-    function removeFromWhitelist(address account) public virtual onlyOwner {
+    function _removeFromWhitelist(address account) internal {
         require(account != address(0), "ERC1410WhiteList: invalid address");
         require(
             _whitelist[account],
@@ -40,6 +49,12 @@ abstract contract ERC1410Whitelist is Ownable {
         );
         _whitelist[account] = false;
         emit AddressRemovedFromWhitelist(account);
+    }
+
+    function removeFromWhitelist(
+        address account
+    ) public virtual onlyOwnerOrManager {
+        _removeFromWhitelist(account);
     }
 
     /**
