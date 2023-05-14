@@ -14,6 +14,29 @@ abstract contract ERC1410Whitelist is Ownable {
     // Event to notify when an address is removed from the whitelist
     event AddressRemovedFromWhitelist(address indexed account);
 
+    /**
+     * @dev Modifier to make a function callable only when the caller is whitelisted.
+     */
+    modifier onlyWhitelisted() {
+        require(
+            _whitelist[msg.sender],
+            "ERC1410WhiteList: caller is not whitelisted"
+        );
+        _;
+    }
+
+    /**
+     * @dev Require that the given address is whitelisted.
+     * @param account The address to check.
+     */
+    modifier whitelisted(address account) {
+        require(
+            isWhitelisted(account),
+            "ERC1410WhiteList: address not whitelisted"
+        );
+        _;
+    }
+
     constructor() {
         // add owner to whitelist
         _addToWhitelist(msg.sender);
@@ -64,17 +87,5 @@ abstract contract ERC1410Whitelist is Ownable {
      */
     function isWhitelisted(address account) public view virtual returns (bool) {
         return _whitelist[account];
-    }
-
-    /**
-     * @dev Require that the given address is whitelisted.
-     * @param account The address to check.
-     */
-    modifier onlyWhitelisted(address account) {
-        require(
-            isWhitelisted(account),
-            "ERC1410WhiteList: address not whitelisted"
-        );
-        _;
     }
 }

@@ -7,8 +7,9 @@ import "../ERC1410Operator.sol";
 import "../IERC1410.sol";
 import "../Ownable.sol";
 import "../ERC1410Whitelist.sol";
+import "../ERC1643.sol";
 
-contract ERC1410Standard is ERC1410Operator, ERC1410Whitelist {
+contract ERC1410Standard is ERC1410Operator, ERC1410Whitelist, ERC1643 {
     using SafeMath for uint256;
 
     // Declare the RedeemedByPartition event
@@ -49,7 +50,7 @@ contract ERC1410Standard is ERC1410Operator, ERC1410Whitelist {
         bytes32 _partition,
         address _tokenHolder,
         uint256 _value
-    ) external onlyOwnerOrManager {
+    ) external onlyOwnerOrManager whitelisted(_tokenHolder) {
         // Add the function to validate the `_data` parameter
         _validateParams(_partition, _value);
         require(_tokenHolder != address(0), "Invalid token receiver");
@@ -72,7 +73,10 @@ contract ERC1410Standard is ERC1410Operator, ERC1410Whitelist {
     /// @notice Decreases totalSupply and the corresponding amount of the specified partition of msg.sender
     /// @param _partition The partition to allocate the decrease in balance
     /// @param _value The amount by which to decrease the balance
-    function redeemByPartition(bytes32 _partition, uint256 _value) external {
+    function redeemByPartition(
+        bytes32 _partition,
+        uint256 _value
+    ) external onlyWhitelisted {
         // Add the function to validate the `_data` parameter
         _redeemByPartition(_partition, msg.sender, address(0), _value);
     }
@@ -86,7 +90,7 @@ contract ERC1410Standard is ERC1410Operator, ERC1410Whitelist {
         bytes32 _partition,
         address _tokenHolder,
         uint256 _value
-    ) external {
+    ) external whitelisted(_tokenHolder) {
         require(_tokenHolder != address(0), "Invalid from address");
         require(
             isOperator(msg.sender, _tokenHolder) ||
@@ -178,6 +182,8 @@ contract ERC1410Standard is ERC1410Operator, ERC1410Whitelist {
     )
         external
         onlyOperatorForPartition(_partition, msg.sender)
+        whitelisted(_from)
+        whitelisted(_to)
         returns (bytes32)
     {
         _transferByPartition(_from, _to, _value, _partition);
