@@ -148,7 +148,7 @@ abstract contract ERC1410Basic is ERC1410Snapshot {
         require(_to != address(0), "0x address not allowed");
         uint256 _fromIndex = partitionToIndex[_from][_partition] - 1;
 
-        if (!_validPartitionForReceiver(_partition, _to)) {
+        if (!validPartitionForReceiver(_partition, _to)) {
             partitions[_to].push(Partition(0, _partition));
             partitionToIndex[_to][_partition] = partitions[_to].length;
         }
@@ -200,7 +200,7 @@ abstract contract ERC1410Basic is ERC1410Snapshot {
         else return true;
     }
 
-    function _validPartitionForReceiver(
+    function validPartitionForReceiver(
         bytes32 _partition,
         address _to
     ) public view returns (bool) {

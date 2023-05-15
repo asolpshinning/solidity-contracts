@@ -1,11 +1,11 @@
-/* SPDX-License-Identifier: UNLICENSED */
+// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.18;
 
 import "./ERC1410Basic.sol";
-import "./Ownable.sol";
+import "./ERC1643.sol";
 
-abstract contract ERC1410Operator is ERC1410Basic, Ownable {
+abstract contract ERC1410Operator is ERC1410Basic, ERC1643 {
     // Mapping from (investor, partition, operator) to approved status
     mapping(address => mapping(bytes32 => mapping(address => bool))) operatorForThisPartition;
 

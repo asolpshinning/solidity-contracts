@@ -1,15 +1,11 @@
-/* SPDX-License-Identifier: UNLICENSED */
+// SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.18;
 
 import "../openzeppelin/SafeMath.sol";
 import "../ERC1410Operator.sol";
-import "../IERC1410.sol";
-import "../Ownable.sol";
-import "../ERC1410Whitelist.sol";
-import "../ERC1643.sol";
 
-contract ERC1410Standard is ERC1410Operator, ERC1410Whitelist, ERC1643 {
+contract ERC1410Standard is ERC1410Operator {
     using SafeMath for uint256;
 
     // Declare the RedeemedByPartition event
@@ -30,8 +26,12 @@ contract ERC1410Standard is ERC1410Operator, ERC1410Whitelist, ERC1643 {
     /**
      * @return true if `msg.sender` is the owner of the contract.
      */
-    function isOwner() external view returns (bool) {
-        return _isOwner();
+    function isOwner(address _account) external view returns (bool) {
+        if (owner() == _account) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     /**
@@ -192,12 +192,16 @@ contract ERC1410Standard is ERC1410Operator, ERC1410Whitelist, ERC1643 {
 
     function addManager(address _manager) public onlyOwner {
         _addManager(_manager);
-        _addToWhitelist(_manager);
+        if (!isWhitelisted(_manager)) {
+            _addToWhitelist(_manager);
+        }
     }
 
     function removeManager(address _manager) public onlyOwner {
         _removeManager(_manager);
-        _removeFromWhitelist(_manager);
+        if (isWhitelisted(_manager)) {
+            _removeFromWhitelist(_manager);
+        }
     }
 
     function totalSupplyByPartition(

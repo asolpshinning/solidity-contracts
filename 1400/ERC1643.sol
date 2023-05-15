@@ -2,13 +2,13 @@
 
 pragma solidity ^0.8.18;
 
-import "./Ownable.sol";
 import "./IERC1643.sol";
+import "./ERC1410Whitelist.sol";
 
 /**
  * @title Standard implementation of ERC1643 Document management
  */
-abstract contract ERC1643 is IERC1643, Ownable {
+abstract contract ERC1643 is IERC1643, ERC1410Whitelist {
     struct Document {
         bytes32 docHash; // Hash of the document
         uint256 lastModified; // Timestamp at which document details was last modified

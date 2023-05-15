@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: UNLICENSED */
+// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.18;
 
@@ -54,7 +54,7 @@ interface IERC1410 {
     ) external view returns (bytes1, bytes32, bytes32);
 
     // Owner / Manager Information
-    function isOwner() external view returns (bool);
+    function isOwner(address _account) external view returns (bool);
 
     function isManager(address _manager) external view returns (bool);
 
