@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.18;
 
 import "../1400/IERC1410.sol"; // Interface for the ERC1410 token contract
 import "../1400/openzeppelin/IERC20.sol"; // Interface for the ERC20 token contract
@@ -51,8 +51,9 @@ contract DividendsDistribution {
 
     modifier onlyOwnerOrManager() {
         require(
-            sharesToken.isOwner() || sharesToken.isManager(msg.sender),
-            "Sender is not the issuer"
+            sharesToken.isOwner(msg.sender) ||
+                sharesToken.isManager(msg.sender),
+            "Sender is not the owner or manager"
         );
         _;
     }

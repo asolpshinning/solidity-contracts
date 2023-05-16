@@ -31,7 +31,7 @@ abstract contract ERC1410Whitelist is Ownable {
      */
     modifier whitelisted(address account) {
         require(
-            isWhitelisted(account),
+            _isWhitelisted(account),
             "ERC1410WhiteList: address not whitelisted"
         );
         _;
@@ -85,7 +85,7 @@ abstract contract ERC1410Whitelist is Ownable {
      * @param account The address to check.
      * @return True if the address is whitelisted, false otherwise.
      */
-    function isWhitelisted(address account) public view virtual returns (bool) {
+    function _isWhitelisted(address account) internal view returns (bool) {
         return _whitelist[account];
     }
 }
