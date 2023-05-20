@@ -17,6 +17,9 @@ abstract contract ERC1410Basic is ERC1410Snapshot {
 
     uint256 _totalSupply;
 
+    // Publicly viewable list of all unique partitions
+    bytes32[] public partitionList;
+
     // Mapping from investor to aggregated balance across all investor token sets
     mapping(address => uint256) balances;
 
@@ -155,6 +158,19 @@ abstract contract ERC1410Basic is ERC1410Snapshot {
         if (!validPartitionForReceiver(_partition, _to)) {
             partitions[_to].push(Partition(0, _partition));
             partitionToIndex[_to][_partition] = partitions[_to].length;
+
+            // Add new partition to the partitionList if it does not already exist
+            // @note Partitions list should not get too long otherwise it will be impractical to use
+            bool partitionExists = false;
+            for (uint256 i = 0; i < partitionList.length; i++) {
+                if (partitionList[i] == _partition) {
+                    partitionExists = true;
+                    break;
+                }
+            }
+            if (!partitionExists) {
+                partitionList.push(_partition);
+            }
         }
         uint256 _toIndex = partitionToIndex[_to][_partition] - 1;
 
