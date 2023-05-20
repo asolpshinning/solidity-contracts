@@ -27,18 +27,11 @@ contract ERC1410Standard is ERC1410Operator {
      * @return true if `msg.sender` is the owner of the contract.
      */
     function isOwner(address _account) external view returns (bool) {
-        if (_owner() == _account) {
+        if (owner() == _account) {
             return true;
         } else {
             return false;
         }
-    }
-
-    /**
-     * @return the address of the owner.
-     */
-    function owner() external view returns (address) {
-        return _owner();
     }
 
     /**
@@ -225,6 +218,18 @@ contract ERC1410Standard is ERC1410Operator {
         if (_isWhitelisted(_manager)) {
             _removeFromWhitelist(_manager);
         }
+    }
+
+    /**
+     * @dev Removes an address from the whitelist.
+     * @param account The address to be removed from the whitelist.
+     */
+    function removeFromWhitelist(
+        address account
+    ) public virtual onlyOwnerOrManager {
+        // require the balance of the address is zero
+        require(_balanceOf(account) == 0, "Balance not zero");
+        _removeFromWhitelist(account);
     }
 
     function isWhitelisted(address _address) external view returns (bool) {

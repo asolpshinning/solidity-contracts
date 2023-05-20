@@ -58,8 +58,12 @@ abstract contract ERC1410Basic is ERC1410Snapshot {
     /// @notice Counts the sum of all partitions balances assigned to an owner
     /// @param _tokenHolder An address for whom to query the balance
     /// @return The number of tokens owned by `_tokenHolder`, possibly zero
-    function balanceOf(address _tokenHolder) external view returns (uint256) {
+    function _balanceOf(address _tokenHolder) internal view returns (uint256) {
         return balances[_tokenHolder];
+    }
+
+    function balanceOf(address _tokenHolder) external view returns (uint256) {
+        return _balanceOf(_tokenHolder);
     }
 
     /// @notice Counts the balance associated with a specific partition assigned to an tokenHolder

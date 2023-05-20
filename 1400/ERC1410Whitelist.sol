@@ -74,12 +74,6 @@ abstract contract ERC1410Whitelist is Ownable {
         emit AddressRemovedFromWhitelist(account);
     }
 
-    function removeFromWhitelist(
-        address account
-    ) public virtual onlyOwnerOrManager {
-        _removeFromWhitelist(account);
-    }
-
     /**
      * @dev Check if an address is whitelisted.
      * @param account The address to check.
