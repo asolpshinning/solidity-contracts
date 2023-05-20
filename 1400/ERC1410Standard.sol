@@ -27,11 +27,18 @@ contract ERC1410Standard is ERC1410Operator {
      * @return true if `msg.sender` is the owner of the contract.
      */
     function isOwner(address _account) external view returns (bool) {
-        if (owner() == _account) {
+        if (_owner() == _account) {
             return true;
         } else {
             return false;
         }
+    }
+
+    /**
+     * @return the address of the owner.
+     */
+    function owner() external view returns (address) {
+        return _owner();
     }
 
     /**

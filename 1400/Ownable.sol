@@ -8,7 +8,7 @@ pragma solidity ^0.8.18;
  * functions, this simplifies the implementation of "user permissions".
  */
 abstract contract Ownable {
-    address private _owner;
+    address private _contractOwner;
     mapping(address => bool) private _managers;
 
     event OwnershipTransferred(
@@ -24,15 +24,15 @@ abstract contract Ownable {
      * account.
      */
     constructor() {
-        _owner = msg.sender;
-        emit OwnershipTransferred(address(0), _owner);
+        _contractOwner = msg.sender;
+        emit OwnershipTransferred(address(0), _contractOwner);
     }
 
     /**
      * @return the address of the owner.
      */
-    function owner() public view returns (address) {
-        return _owner;
+    function _owner() internal view returns (address) {
+        return _contractOwner;
     }
 
     /**
@@ -58,7 +58,7 @@ abstract contract Ownable {
      * @return true if `msg.sender` is the owner of the contract.
      */
     function _isOwner() internal view returns (bool) {
-        return msg.sender == _owner;
+        return msg.sender == _contractOwner;
     }
 
     /**
@@ -97,8 +97,8 @@ abstract contract Ownable {
      * modifier anymore.
      */
     function renounceOwnership() public onlyOwner {
-        emit OwnershipTransferred(_owner, address(0));
-        _owner = address(0);
+        emit OwnershipTransferred(_contractOwner, address(0));
+        _contractOwner = address(0);
     }
 
     /**
@@ -115,7 +115,7 @@ abstract contract Ownable {
      */
     function _transferOwnership(address newOwner) internal {
         require(newOwner != address(0));
-        emit OwnershipTransferred(_owner, newOwner);
-        _owner = newOwner;
+        emit OwnershipTransferred(_contractOwner, newOwner);
+        _contractOwner = newOwner;
     }
 }

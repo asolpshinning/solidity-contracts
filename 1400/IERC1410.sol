@@ -28,35 +28,43 @@ interface IERC1410 {
 
     function totalSupply() external view returns (uint256);
 
+    // Token Issue
+    function operatorIssueByPartition(
+        bytes32 _partition,
+        address _tokenHolder,
+        uint256 _value
+    ) external;
+
     // Token Transfers
     function transferByPartition(
         bytes32 _partition,
         address _to,
-        uint256 _value,
-        bytes calldata _data
+        uint256 _value
     ) external returns (bytes32);
 
     function operatorTransferByPartition(
         bytes32 _partition,
         address _from,
         address _to,
-        uint256 _value,
-        bytes calldata _data,
-        bytes calldata _operatorData
+        uint256 _value
     ) external returns (bytes32);
 
     function canTransferByPartition(
         address _from,
         address _to,
         bytes32 _partition,
-        uint256 _value,
-        bytes calldata _data
+        uint256 _value
     ) external view returns (bytes1, bytes32, bytes32);
 
     // Owner / Manager Information
     function isOwner(address _account) external view returns (bool);
 
     function isManager(address _manager) external view returns (bool);
+
+    function owner() external view returns (address);
+
+    // Shareholder Information
+    function isWhitelisted(address _tokenHolder) external view returns (bool);
 
     // Operator Information
     function isOperator(
@@ -89,22 +97,15 @@ interface IERC1410 {
     function issueByPartition(
         bytes32 _partition,
         address _tokenHolder,
-        uint256 _value,
-        bytes calldata _data
+        uint256 _value
     ) external;
 
-    function redeemByPartition(
-        bytes32 _partition,
-        uint256 _value,
-        bytes calldata _data
-    ) external;
+    function redeemByPartition(bytes32 _partition, uint256 _value) external;
 
     function operatorRedeemByPartition(
         bytes32 _partition,
         address _tokenHolder,
-        uint256 _value,
-        bytes calldata _data,
-        bytes calldata _operatorData
+        uint256 _value
     ) external;
 
     // Transfer Events

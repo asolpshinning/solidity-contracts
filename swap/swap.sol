@@ -2,8 +2,8 @@
 
 pragma solidity ^0.8.18;
 
-import "../1400/contracts/ERC1410Standard.sol";
-import "../1400/ERC20Token.sol";
+import "../1400/IERC1410.sol";
+import "../1400/erc20/IERC20.sol";
 
 contract SwapContract {
     struct Order {
@@ -12,14 +12,22 @@ contract SwapContract {
         uint256 amount;
         uint256 price;
         uint256 filledAmount;
+        address approvingSeller;
+        orderType orderType;
+        orderStatus orderStatus;
+    }
+
+    struct orderStatus {
         bool isApproved;
         bool isDisapproved;
         bool isCancelled;
+        bool sellerAccepted;
+    }
+
+    struct orderType {
         bool isShareIssuance;
         bool isSellOrder;
-        bool sellerAccepted;
         bool isErc20Payment;
-        address approvingSeller;
     }
 
     struct Proceeds {
@@ -27,9 +35,8 @@ contract SwapContract {
         uint256 tokenProceeds;
     }
 
-    ERC1410Standard public shareToken;
-    ERC20Token public paymentToken;
-    address public contractManager;
+    IERC1410 public shareToken;
+    IERC20 public paymentToken;
     mapping(uint256 => Order) public orders;
     uint256 public nextOrderId = 0;
     mapping(address => Proceeds) public unclaimedProceeds;
@@ -50,14 +57,9 @@ contract SwapContract {
         _;
     }
 
-    constructor(
-        ERC1410Standard _shareToken,
-        ERC20Token _paymentToken,
-        address _contractManager
-    ) {
+    constructor(IERC1410 _shareToken, IERC20 _paymentToken) {
         shareToken = _shareToken;
         paymentToken = _paymentToken;
-        contractManager = _contractManager;
     }
 
     function initiateOrder(
@@ -82,57 +84,77 @@ contract SwapContract {
             amount,
             price,
             0,
-            false,
-            false,
-            false,
-            isShareIssuance,
-            isSellOrder,
-            isSellOrder,
-            isErc20Payment,
-            approvingSeller
+            approvingSeller,
+            orderType(isShareIssuance, isSellOrder, isErc20Payment),
+            orderStatus(false, false, false, false)
         );
         orders[nextOrderId] = newOrder;
         return nextOrderId++;
     }
 
     function approveOrder(uint256 orderId) public onlyOwnerOrManager {
-        require(msg.sender == contractManager, "Only manager can approve");
-        require(!orders[orderId].isDisapproved, "Order already disapproved");
-        require(!orders[orderId].isCancelled, "Order already cancelled");
-        orders[orderId].isApproved = true;
-        if (orders[orderId].isShareIssuance) {
-            orders[orderId].sellerAccepted = true;
+        require(
+            !orders[orderId].orderStatus.isDisapproved,
+            "Order already disapproved"
+        );
+        require(
+            !orders[orderId].orderStatus.isCancelled,
+            "Order already cancelled"
+        );
+        orders[orderId].orderStatus.isApproved = true;
+        if (orders[orderId].orderType.isShareIssuance) {
+            orders[orderId].orderStatus.sellerAccepted = true;
             orders[orderId].approvingSeller = shareToken.owner();
         }
     }
 
     function disapproveOrder(uint256 orderId) public onlyOwnerOrManager {
-        require(msg.sender == contractManager, "Only manager can disapprove");
-        require(!orders[orderId].isApproved, "Order already approved");
-        require(!orders[orderId].isCancelled, "Order already cancelled");
-        orders[orderId].isDisapproved = true;
+        require(
+            !orders[orderId].orderStatus.isApproved,
+            "Order already approved"
+        );
+        require(
+            !orders[orderId].orderStatus.isCancelled,
+            "Order already cancelled"
+        );
+        orders[orderId].orderStatus.isDisapproved = true;
     }
 
     function sellerAcceptPurchase(uint256 orderId) public onlyWhitelisted {
-        require(!orders[orderId].isShareIssuance, "This is a share issuance");
-        require(!orders[orderId].isCancelled, "Order already cancelled");
-        require(orders[orderId].isApproved, "Order not approved by manager");
         require(
-            !orders[orderId].isSellOrder,
+            !orders[orderId].orderType.isShareIssuance,
+            "This is a share issuance"
+        );
+        require(
+            !orders[orderId].orderStatus.isCancelled,
+            "Order already cancelled"
+        );
+        require(
+            orders[orderId].orderStatus.isApproved,
+            "Order not approved by manager"
+        );
+        require(
+            !orders[orderId].orderType.isSellOrder,
             "Only purchase orders can be accepted by seller"
         );
         require(
             orders[orderId].filledAmount < orders[orderId].amount,
             "Order already fully filled"
         );
-        orders[orderId].sellerAccepted = true;
+        orders[orderId].orderStatus.sellerAccepted = true;
         orders[orderId].approvingSeller = msg.sender;
     }
 
     function fillSale(uint256 orderId, uint256 amount) public payable {
-        require(orders[orderId].isApproved, "Order not approved by manager");
-        require(orders[orderId].isSellOrder, "This is not a sell order");
-        require(!orders[orderId].isCancelled, "Order cancelled");
+        require(
+            orders[orderId].orderStatus.isApproved,
+            "Order not approved by manager"
+        );
+        require(
+            orders[orderId].orderType.isSellOrder,
+            "This is not a sell order"
+        );
+        require(!orders[orderId].orderStatus.isCancelled, "Order cancelled");
         require(
             orders[orderId].filledAmount + amount <= orders[orderId].amount,
             "Order can't be overfilled"
@@ -140,7 +162,7 @@ contract SwapContract {
 
         Proceeds memory proceeds = unclaimedProceeds[orders[orderId].initiator];
 
-        if (orders[orderId].isErc20Payment) {
+        if (orders[orderId].orderType.isErc20Payment) {
             require(
                 paymentToken.transferFrom(
                     msg.sender,
@@ -171,14 +193,14 @@ contract SwapContract {
 
     function completePurchaseOrder(uint256 orderId) public payable {
         require(
-            !orders[orderId].isShareIssuance,
+            !orders[orderId].orderType.isShareIssuance,
             "Cannot complete a share issuance order"
         );
         require(
-            orders[orderId].sellerAccepted,
+            orders[orderId].orderStatus.sellerAccepted,
             "Seller has not accepted the purchase order"
         );
-        require(!orders[orderId].isCancelled, "Order cancelled");
+        require(!orders[orderId].orderStatus.isCancelled, "Order cancelled");
         require(
             orders[orderId].filledAmount < orders[orderId].amount,
             "Order fully filled"
@@ -188,7 +210,7 @@ contract SwapContract {
             orders[orderId].approvingSeller
         ];
 
-        if (orders[orderId].isErc20Payment) {
+        if (orders[orderId].orderType.isErc20Payment) {
             require(
                 paymentToken.transferFrom(
                     msg.sender,
@@ -223,10 +245,10 @@ contract SwapContract {
 
     function completeShareIssuance(uint256 orderId) public payable {
         require(
-            orders[orderId].isShareIssuance,
+            orders[orderId].orderType.isShareIssuance,
             "This is not a share issuance"
         );
-        require(!orders[orderId].isCancelled, "Order cancelled");
+        require(!orders[orderId].orderStatus.isCancelled, "Order cancelled");
         require(
             orders[orderId].filledAmount < orders[orderId].amount,
             "Order fully filled"
@@ -236,7 +258,7 @@ contract SwapContract {
             orders[orderId].approvingSeller
         ];
 
-        if (orders[orderId].isErc20Payment) {
+        if (orders[orderId].orderType.isErc20Payment) {
             require(
                 paymentToken.transferFrom(
                     msg.sender,
@@ -273,15 +295,21 @@ contract SwapContract {
             msg.sender == orders[orderId].initiator,
             "Only initiator can cancel"
         );
-        require(!orders[orderId].isDisapproved, "Order already disapproved");
-        require(!orders[orderId].isCancelled, "Order already cancelled");
+        require(
+            !orders[orderId].orderStatus.isDisapproved,
+            "Order already disapproved"
+        );
+        require(
+            !orders[orderId].orderStatus.isCancelled,
+            "Order already cancelled"
+        );
         require(
             orders[orderId].filledAmount < orders[orderId].amount,
             "Order already fully filled"
         );
-        orders[orderId].isCancelled = true;
-        orders[orderId].isApproved = false;
-        orders[orderId].sellerAccepted = false;
+        orders[orderId].orderStatus.isCancelled = true;
+        orders[orderId].orderStatus.isApproved = false;
+        orders[orderId].orderStatus.sellerAccepted = false;
     }
 
     function getOrderDetails(
