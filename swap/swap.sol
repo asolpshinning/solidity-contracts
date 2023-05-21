@@ -122,6 +122,15 @@ contract SwapContract {
             (!cannotPurchase[msg.sender] && !isAskOrder) || isAskOrder,
             "Cannot purchase from this address"
         );
+        require(
+            (isAskOrder &&
+                isShareIssuance &&
+                (shareToken.isOwner(msg.sender) ||
+                    shareToken.isManager(msg.sender))) ||
+                (!isAskOrder && isShareIssuance) ||
+                !isShareIssuance,
+            "Only owner or manager can create share issuance ask orders"
+        );
         address filler = address(0);
         Order memory newOrder = Order(
             msg.sender,

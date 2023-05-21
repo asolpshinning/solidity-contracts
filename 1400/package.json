@@ -10,10 +10,11 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "hardhat": "^2.14.0"
+    "hardhat": "^2.14.0",
+    "solidity-coverage": "^0.8.2"
   },
   "dependencies": {
     "@nomicfoundation/hardhat-toolbox": "^2.0.2",
-    "thirdweb": "^0.10.15"
+    "thirdweb": "^0.10.17"
   }
 }
