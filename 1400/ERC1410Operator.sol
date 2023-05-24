@@ -61,8 +61,8 @@ abstract contract ERC1410Operator is ERC1410Basic, ERC1643 {
         address _tokenHolder
     ) {
         require(
-            operatorForThisPartition[_tokenHolder][_partition][msg.sender] ||
-                operatorForAllPartitions[_tokenHolder][msg.sender],
+            isOperatorForPartition(_partition, msg.sender, _tokenHolder) ||
+                isOperator(msg.sender, _tokenHolder),
             "Not an operator for this partition"
         );
         _;

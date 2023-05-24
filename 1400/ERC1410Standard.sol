@@ -82,7 +82,7 @@ contract ERC1410Standard is ERC1410Operator {
         bytes32 _partition,
         address _tokenHolder,
         uint256 _value
-    ) external onlyOperatorForPartition(_partition, msg.sender) {
+    ) external onlyOperatorForPartition(_partition, _tokenHolder) {
         _issueByPartition(_partition, _tokenHolder, _value);
     }
 
@@ -197,7 +197,7 @@ contract ERC1410Standard is ERC1410Operator {
         uint256 _value
     )
         external
-        onlyOperatorForPartition(_partition, msg.sender)
+        onlyOperatorForPartition(_partition, _from)
         whitelisted(_from)
         whitelisted(_to)
         returns (bytes32)
