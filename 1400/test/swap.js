@@ -18,6 +18,7 @@ describe("Order Functions Testing", function () {
         return { owner, addr1, addr2, shareToken, paymentToken, swapContract };
     }
 
+    // Test cases for initiateOrder()
     it("Should allow an AskOrder from whitelisted address with sufficient balance", async function () {
         const { owner, addr1, addr2, shareToken, paymentToken, swapContract } = await setupOrderTesting();
 
@@ -56,7 +57,7 @@ describe("Order Functions Testing", function () {
     });
 
     it("Should fail when an AskOrder has insufficient balance", async function () {
-        const { owner, addr1, shareToken, paymentToken, swapContract } = await setupOrderTesting();
+        const { owner, addr1, addr2, shareToken, paymentToken, swapContract } = await setupOrderTesting();
 
         const partition = ethers.utils.formatBytes32String("partition1");
         const amount = 100;
@@ -70,6 +71,21 @@ describe("Order Functions Testing", function () {
         ).to.be.revertedWith("Insufficient balance");
     });
 
+    it("should allow owner or manager to place a shareIssuance AskOrder with insufficient balance", async function () {
+        const { owner, swapContract } = await setupOrderTesting();
+        const partition = ethers.utils.formatBytes32String("partition1");
+        const amount = 100;
+        const price = 1;
+        await swapContract.connect(owner).initiateOrder(partition, amount, price, true, true, false);
+
+        const order = await swapContract.orders(0);
+        expect(order.initiator).to.equal(owner.address);
+        expect(order.amount).to.equal(amount);
+        expect(order.price).to.equal(price);
+        expect(order.orderType.isAskOrder).to.equal(true);
+        expect(order.orderType.isShareIssuance).to.equal(true);
+    });
+
     it("Should fail when a BidOrder has insufficient balance", async function () {
         const { owner, addr1, addr2, shareToken, paymentToken, swapContract } = await setupOrderTesting();
 
@@ -81,7 +97,7 @@ describe("Order Functions Testing", function () {
         await paymentToken.connect(owner).mint(addr1.address, amount * price - 10);
 
         await expect(
-            swapContract.connect(addr1).initiateOrder(partition, amount, price, false, false, false)
+            swapContract.connect(addr1).initiateOrder(partition, amount, price, false, false, true)
         ).to.be.revertedWith("Insufficient balance");
     });
 

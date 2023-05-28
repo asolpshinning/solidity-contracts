@@ -113,17 +113,6 @@ contract SwapContract {
         bool isErc20Payment
     ) public onlyWhitelisted returns (uint256) {
         require(
-            isAskOrder
-                ? shareToken.balanceOfByPartition(partition, msg.sender) >=
-                    amount
-                : paymentToken.balanceOf(msg.sender) >= amount * price,
-            "Insufficient balance"
-        );
-        require(
-            (!cannotPurchase[msg.sender] && !isAskOrder) || isAskOrder,
-            "Cannot purchase from this address"
-        );
-        require(
             (isAskOrder &&
                 isShareIssuance &&
                 (shareToken.isOwner(msg.sender) ||
@@ -131,6 +120,31 @@ contract SwapContract {
                 (!isAskOrder && isShareIssuance) ||
                 !isShareIssuance,
             "Only owner or manager can create share issuance ask orders"
+        );
+        if (isAskOrder) {
+            if (!isShareIssuance) {
+                require(
+                    shareToken.balanceOfByPartition(partition, msg.sender) >=
+                        amount,
+                    "Insufficient balance"
+                );
+            }
+        } else {
+            if (isErc20Payment) {
+                require(
+                    paymentToken.balanceOf(msg.sender) >= amount * price,
+                    "Insufficient balance"
+                );
+            } else {
+                require(
+                    msg.sender.balance >= amount * price,
+                    "Insufficient balance"
+                );
+            }
+        }
+        require(
+            (!cannotPurchase[msg.sender] && !isAskOrder) || isAskOrder,
+            "Cannot purchase from this address"
         );
         address filler = address(0);
         Order memory newOrder = Order(
