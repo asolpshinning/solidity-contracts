@@ -53,6 +53,8 @@ contract SwapContract {
     mapping(uint256 => Order) public orders; /// The mapping of order ids to orders.
     mapping(address => Proceeds) public unclaimedProceeds; /// The mapping of addresses to proceeds.
     mapping(address => bool) public cannotPurchase; /// The mapping of addresses to cannotPurchase status.
+    // mapping of addresses to orderId and then mapped to uint256 to indicate order quantity accepted
+    mapping(address => mapping(uint256 => uint256)) public acceptedOrderQty; /// The mapping of addresses to accepted orders.
 
     /// @notice Event emitted when proceeds are withdrawn from the contract
     /// @param recipient The address receiving the tokens
@@ -126,19 +128,19 @@ contract SwapContract {
                 require(
                     shareToken.balanceOfByPartition(partition, msg.sender) >=
                         amount,
-                    "Insufficient balance"
+                    "Swap: Insufficient balance"
                 );
             }
         } else {
             if (isErc20Payment) {
                 require(
                     paymentToken.balanceOf(msg.sender) >= amount * price,
-                    "Insufficient balance"
+                    "Swap: Insufficient balance"
                 );
             } else {
                 require(
                     msg.sender.balance >= amount * price,
-                    "Insufficient balance"
+                    "Swap: Insufficient balance"
                 );
             }
         }
@@ -191,7 +193,7 @@ contract SwapContract {
 
     /// @notice Disapproves a given order
     /// @dev Only an owner or manager can call this function. Checks that the order has not already been disapproved or cancelled.
-    ///      Also checks whether approvals are enabled, and checks that the order has not been filled yet.
+    ///      Also checks whether approvals are enabled, and checks that the order has not been fully filled yet.
     ///      Finally, it marks the order as disapproved.
     /// @param orderId The id of the order to disapprove
     function disapproveOrder(uint256 orderId) public onlyOwnerOrManager {
@@ -205,8 +207,8 @@ contract SwapContract {
             "Approvals toggled off"
         );
         require(
-            orders[orderId].filledAmount == 0,
-            "Order already partially or fully filled"
+            orders[orderId].filledAmount < orders[orderId].amount,
+            "Order already fully filled"
         );
         orders[orderId].status.isDisapproved = true;
     }
@@ -215,9 +217,14 @@ contract SwapContract {
     /// @dev Only a whitelisted address can call this function. Checks that the order is not both a share issuance and bid order.
     ///      Also checks that the user is not in the cannotPurchase mapping, if the order is an ask order.
     ///      Also checks that the order has not been cancelled and that it has not already been fully filled.
+    ///      Checks that the order has not already been accepted.
     ///      Finally, it marks the initiated order as accepted and sets the filler to the message sender.
     /// @param orderId The id of the order to accept
-    function acceptOrder(uint256 orderId) public onlyWhitelisted {
+    /// @param amount The amount of order shares to accept to sell / buy
+    function acceptOrder(
+        uint256 orderId,
+        uint256 amount
+    ) public onlyWhitelisted {
         require(
             (orders[orderId].orderType.isShareIssuance &&
                 orders[orderId].orderType.isAskOrder) ||
@@ -232,11 +239,20 @@ contract SwapContract {
         );
         require(!orders[orderId].status.isCancelled, "Order already cancelled");
         require(
+            !orders[orderId].status.orderAccepted,
+            "Order already accepted"
+        );
+        require(
             orders[orderId].filledAmount < orders[orderId].amount,
             "Order already fully filled"
         );
+        require(
+            amount <= orders[orderId].amount - orders[orderId].filledAmount,
+            "Cannot accept to overfill order"
+        );
         orders[orderId].status.orderAccepted = true;
         orders[orderId].filler = msg.sender;
+        acceptedOrderQty[msg.sender][orderId] = amount;
     }
 
     /// @notice Checks whether a given order can be filled with a specific amount
@@ -253,6 +269,7 @@ contract SwapContract {
         uint256 amount
     ) public view returns (bool) {
         require(!orders[orderId].status.isCancelled, "Order already cancelled");
+        require(orders[orderId].status.orderAccepted, "Order not accepted");
         require(
             ((orders[orderId].status.isApproved &&
                 (swapApprovalsEnabled || txnApprovalsEnabled)) ||
@@ -277,12 +294,11 @@ contract SwapContract {
     /// @notice Fills a given order with a specific amount
     /// @dev Checks if the order is an ask order and fills it using `_fillAsk`, otherwise it fills it using `_fillBid`.
     /// @param orderId The id of the order to fill
-    /// @param amount The amount to fill the order with
-    function fillOrder(uint256 orderId, uint256 amount) public payable {
+    function fillOrder(uint256 orderId) public payable {
         if (orders[orderId].orderType.isAskOrder) {
-            _fillAsk(orderId, amount);
+            _fillAsk(orderId);
         } else {
-            _fillBid(orderId, amount);
+            _fillBid(orderId);
         }
     }
 
@@ -290,9 +306,11 @@ contract SwapContract {
     /// @dev This internal function can only be called by the contract itself. Checks if the order can be filled and transfers
     ///      the payment (in either ERC20 tokens or ETH) from the buyer to the contract. If the order is a share issuance,
     ///      it issues new shares to the filler, otherwise it transfers shares from the initiator to the filler.
+    ///      It updates the orderAccepted of the order to false, after the order has been partially or fully filled.
+    ///      Finally, it updates the filled amount of the order and the unclaimed proceeds of the initiator.
     /// @param orderId The id of the order to fill
-    /// @param amount The amount to fill the order with
-    function _fillAsk(uint256 orderId, uint256 amount) internal {
+    function _fillAsk(uint256 orderId) internal {
+        uint256 amount = acceptedOrderQty[msg.sender][orderId];
         require(canFillOrder(orderId, amount), "Order cannot be filled");
 
         Proceeds memory proceeds = unclaimedProceeds[orders[orderId].initiator];
@@ -330,6 +348,7 @@ contract SwapContract {
             );
         }
         orders[orderId].filledAmount += amount;
+        orders[orderId].status.orderAccepted = false;
         unclaimedProceeds[orders[orderId].initiator] = proceeds;
     }
 
@@ -338,8 +357,8 @@ contract SwapContract {
     ///      the payment (in either ERC20 tokens or ETH) from the buyer to the contract. If the order is a share issuance,
     ///      it issues new shares to the initiator, otherwise it transfers shares from the filler (address who accepted order) to the initiator.
     /// @param orderId The id of the order to fill
-    /// @param amount The amount to fill the order with
-    function _fillBid(uint256 orderId, uint256 amount) internal {
+    function _fillBid(uint256 orderId) internal {
+        uint256 amount = acceptedOrderQty[msg.sender][orderId];
         require(canFillOrder(orderId, amount), "Order cannot be filled");
         Proceeds memory proceeds = unclaimedProceeds[orders[orderId].filler];
 
@@ -510,7 +529,7 @@ contract SwapContract {
         cannotPurchase[_address] = true;
     }
 
-    /// @notice Returns the current status of swap approvals
+    /*   /// @notice Returns the current status of swap approvals
     /// @dev This function doesn't modify state and can be freely called.
     /// @return The current status of swap approvals
     function isSwapApprovalEnabled() external view returns (bool) {
@@ -560,5 +579,5 @@ contract SwapContract {
     /// @return The banned status of the address
     function isBanned(address _address) external view returns (bool) {
         return cannotPurchase[_address];
-    }
+    } */
 }

@@ -68,7 +68,7 @@ describe("Order Functions Testing", function () {
 
         await expect(
             swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false)
-        ).to.be.revertedWith("Insufficient balance");
+        ).to.be.revertedWith("Swap: Insufficient balance");
     });
 
     it("should allow owner or manager to place a shareIssuance AskOrder with insufficient balance", async function () {
@@ -98,7 +98,7 @@ describe("Order Functions Testing", function () {
 
         await expect(
             swapContract.connect(addr1).initiateOrder(partition, amount, price, false, false, true)
-        ).to.be.revertedWith("Insufficient balance");
+        ).to.be.revertedWith("Swap: Insufficient balance");
     });
 
     it("Should fail when a non-whitelisted address tries to place an AskOrder or a BidOrder", async function () {
@@ -302,12 +302,12 @@ describe("Order Functions Testing", function () {
         const amount = 100;
         const price = 1;
 
-        expect(await swapContract.isTxnApprovalEnabled()).to.equal(false);
-        expect(await swapContract.isSwapApprovalEnabled()).to.equal(true);
+        expect(await swapContract.txnApprovalsEnabled()).to.equal(false);
+        expect(await swapContract.swapApprovalsEnabled()).to.equal(true);
         await shareToken.connect(owner).addToWhitelist(addr1.address);
         await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount);
         await swapContract.connect(owner).toggleSwapApprovals();
-        expect(await swapContract.isSwapApprovalEnabled()).to.equal(false);
+        expect(await swapContract.swapApprovalsEnabled()).to.equal(false);
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false);
 
         await expect(swapContract.connect(owner).approveOrder(0)).to.be.revertedWith("Approvals toggled off, no approval required");
@@ -323,6 +323,7 @@ describe("Order Functions Testing", function () {
         await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount);
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false);
         await swapContract.connect(owner).toggleTxnApprovals();
+        expect(await swapContract.txnApprovalsEnabled()).to.equal(true);
 
         await expect(swapContract.connect(owner).approveOrder(0)).to.be.revertedWith("Initiated orders must be accepted before approval (if txn approvals are enabled)");
     });
@@ -390,7 +391,7 @@ describe("Order Functions Testing", function () {
         await expect(swapContract.connect(owner).disapproveOrder(0)).to.be.revertedWith("Approvals toggled off");
     });
 
-    it("Should not allow disapproving an order that is partially or fully filled", async function () {
+    it("Should not allow disapproving an order that is fully filled", async function () {
         const { owner, addr1, addr2, shareToken, paymentToken, swapContract } = await setupOrderTesting();
 
         const partition = ethers.utils.formatBytes32String("partition1");
@@ -399,18 +400,23 @@ describe("Order Functions Testing", function () {
 
         await shareToken.connect(owner).addToWhitelist(addr1.address);
         await shareToken.connect(owner).addToWhitelist(addr2.address);
-        await paymentToken.connect(owner).mint(addr2.address, amount * price);
-        await paymentToken.connect(addr2).increaseAllowance(swapContract.address, amount / 2 * price);
-        await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount);
+        await paymentToken.connect(owner).mint(addr2.address, 1.5 * amount * price);
+        await paymentToken.connect(addr2).increaseAllowance(swapContract.address, 1.5 * amount * price);
+        await shareToken.connect(owner).issueByPartition(partition, addr1.address, 1.5 * amount);
         await shareToken.connect(owner).authorizeOperator(swapContract.address, addr1.address);
         expect(await shareToken.isOperator(swapContract.address, addr1.address)).to.equal(true);
         await shareToken.connect(owner).authorizeOperator(swapContract.address, addr2.address);
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, true);
+        await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, true);
         await swapContract.connect(owner).approveOrder(0);
-        await swapContract.connect(addr2).acceptOrder(0);
-        await swapContract.connect(addr2).fillOrder(0, amount / 2);
+        await swapContract.connect(owner).approveOrder(1);
+        await swapContract.connect(addr2).acceptOrder(0, amount);
+        await swapContract.connect(addr2).acceptOrder(1, amount / 2);
+        await swapContract.connect(addr2).fillOrder(0);
+        await swapContract.connect(addr2).fillOrder(1);
 
-        await expect(swapContract.connect(owner).disapproveOrder(0)).to.be.revertedWith("Order already partially or fully filled");
+        await expect(swapContract.connect(owner).disapproveOrder(0)).to.be.revertedWith("Order already fully filled");
+        await expect(swapContract.connect(owner).disapproveOrder(1)).to.not.be.reverted;
     });
 
 });
