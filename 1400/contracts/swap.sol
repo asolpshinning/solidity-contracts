@@ -259,6 +259,8 @@ contract SwapContract {
     /// @dev Checks if the order has not been cancelled, that it has been approved and that it won't be overfilled by filling it with the specified amount.
     ///      Also checks that if the order is a bid order, the message sender is the initiator of the order.
     ///      If the order is an ask order, it checks that the message sender is the filler of the order (address that accepted the order).
+    ///      If transaction approvals are enabled, it checks that the order has been accepted by the other party.
+    ///      If transaction approvals are disabled and it is a bid order, it checks that the order has been accepted by the other party.
     ///      Finally, if approvals are enabled, it checks that the order has been approved by the manager.
     ///      Returns true if all checks pass.
     /// @param orderId The id of the order to check
@@ -269,7 +271,16 @@ contract SwapContract {
         uint256 amount
     ) public view returns (bool) {
         require(!orders[orderId].status.isCancelled, "Order already cancelled");
-        require(orders[orderId].status.orderAccepted, "Order not accepted");
+        require(
+            !orders[orderId].status.isDisapproved,
+            "Order already disapproved"
+        );
+        if (
+            (!orders[orderId].orderType.isAskOrder && !txnApprovalsEnabled) ||
+            txnApprovalsEnabled
+        ) {
+            require(orders[orderId].status.orderAccepted, "Order not accepted");
+        }
         require(
             ((orders[orderId].status.isApproved &&
                 (swapApprovalsEnabled || txnApprovalsEnabled)) ||
@@ -280,13 +291,15 @@ contract SwapContract {
             (!orders[orderId].orderType.isAskOrder &&
                 msg.sender == orders[orderId].initiator) ||
                 (orders[orderId].orderType.isAskOrder &&
-                    msg.sender == orders[orderId].filler),
+                    msg.sender == orders[orderId].filler &&
+                    txnApprovalsEnabled) ||
+                (orders[orderId].orderType.isAskOrder && !txnApprovalsEnabled),
             "Only initiator can fill bid orders. Only filler(who accepted order) can fill ask orders"
         );
 
         require(
             orders[orderId].filledAmount + amount <= orders[orderId].amount,
-            "Order can't be overfilled"
+            "Order already fully filled"
         );
         return true;
     }
@@ -294,7 +307,7 @@ contract SwapContract {
     /// @notice Fills a given order with a specific amount
     /// @dev Checks if the order is an ask order and fills it using `_fillAsk`, otherwise it fills it using `_fillBid`.
     /// @param orderId The id of the order to fill
-    function fillOrder(uint256 orderId) public payable {
+    function fillOrder(uint256 orderId) public payable onlyWhitelisted {
         if (orders[orderId].orderType.isAskOrder) {
             _fillAsk(orderId);
         } else {
@@ -399,6 +412,7 @@ contract SwapContract {
             );
         }
         orders[orderId].filledAmount += orders[orderId].amount;
+        orders[orderId].status.orderAccepted = false;
         unclaimedProceeds[orders[orderId].filler] = proceeds;
     }
 
