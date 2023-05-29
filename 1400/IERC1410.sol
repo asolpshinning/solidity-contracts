@@ -67,15 +67,11 @@ interface IERC1410 {
     function isWhitelisted(address _tokenHolder) external view returns (bool);
 
     // Operator Information
-    function isOperator(
-        address _operator,
-        address _tokenHolder
-    ) external view returns (bool);
+    function isOperator(address _operator) external view returns (bool);
 
     function isOperatorForPartition(
         bytes32 _partition,
-        address _operator,
-        address _tokenHolder
+        address _operator
     ) external view returns (bool);
 
     // Operator Management
@@ -120,23 +116,15 @@ interface IERC1410 {
     );
 
     // Operator Events
-    event AuthorizedOperator(
-        address indexed operator,
-        address indexed tokenHolder
-    );
-    event RevokedOperator(
-        address indexed operator,
-        address indexed tokenHolder
-    );
+    event AuthorizedOperator(address indexed operator);
+    event RevokedOperator(address indexed operator);
     event AuthorizedOperatorByPartition(
         bytes32 indexed partition,
-        address indexed operator,
-        address indexed tokenHolder
+        address indexed operator
     );
     event RevokedOperatorByPartition(
         bytes32 indexed partition,
-        address indexed operator,
-        address indexed tokenHolder
+        address indexed operator
     );
 
     // Issuance / Redemption Events

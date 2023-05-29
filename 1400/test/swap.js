@@ -403,9 +403,8 @@ describe("Order Functions Testing", function () {
         await paymentToken.connect(owner).mint(addr2.address, 1.5 * amount * price);
         await paymentToken.connect(addr2).increaseAllowance(swapContract.address, 1.5 * amount * price);
         await shareToken.connect(owner).issueByPartition(partition, addr1.address, 1.5 * amount);
-        await shareToken.connect(owner).authorizeOperator(swapContract.address, addr1.address);
-        expect(await shareToken.isOperator(swapContract.address, addr1.address)).to.equal(true);
-        await shareToken.connect(owner).authorizeOperator(swapContract.address, addr2.address);
+        await shareToken.connect(owner).authorizeOperator(swapContract.address);
+        expect(await shareToken.isOperator(swapContract.address)).to.equal(true);
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, true);
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, true);
         await swapContract.connect(owner).approveOrder(0);
@@ -457,7 +456,7 @@ describe("Order Functions Testing", function () {
 
         await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount);
         // make swap contract an operator of addr1
-        await shareToken.connect(owner).authorizeOperator(swapContract.address, addr1.address);
+        await shareToken.connect(owner).authorizeOperator(swapContract.address);
         // initiate order
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, true);
         let order = await swapContract.orders(0);
@@ -498,9 +497,8 @@ describe("Order Functions Testing", function () {
         await paymentToken.connect(owner).mint(addr2.address, 1.5 * amount * price);
         await paymentToken.connect(addr2).increaseAllowance(swapContract.address, 1.5 * amount * price);
         await shareToken.connect(owner).issueByPartition(partition, addr1.address, 1.5 * amount);
-        await shareToken.connect(owner).authorizeOperator(swapContract.address, addr1.address);
-        expect(await shareToken.isOperator(swapContract.address, addr1.address)).to.equal(true);
-        await shareToken.connect(owner).authorizeOperator(swapContract.address, addr2.address);
+        await shareToken.connect(owner).authorizeOperator(swapContract.address);
+        expect(await shareToken.isOperator(swapContract.address)).to.equal(true);
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, true);
         await swapContract.connect(owner).approveOrder(0);
         await swapContract.connect(addr2).acceptOrder(0, amount);
@@ -520,7 +518,7 @@ describe("Order Functions Testing", function () {
         await shareToken.connect(owner).addToWhitelist(addr2.address);
         await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount);
         // make swapContract an authorized operator of addr1
-        await shareToken.connect(owner).authorizeOperator(swapContract.address, addr1.address);
+        await shareToken.connect(owner).authorizeOperator(swapContract.address);
         // initiate an order
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, true);
         // mint payment tokens to addr2
@@ -550,7 +548,7 @@ describe("Order Functions Testing", function () {
         await shareToken.connect(owner).addToWhitelist(addr2.address);
         await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount);
         // make swapContract an authorized operator of addr1
-        await shareToken.connect(owner).authorizeOperator(swapContract.address, addr1.address);
+        await shareToken.connect(owner).authorizeOperator(swapContract.address);
         // initiate an order
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, true);
         // mint payment tokens to addr2

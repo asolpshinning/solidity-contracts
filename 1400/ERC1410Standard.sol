@@ -109,8 +109,8 @@ contract ERC1410Standard is ERC1410Operator {
     ) external whitelisted(_tokenHolder) {
         require(_tokenHolder != address(0), "Invalid from address");
         require(
-            isOperator(msg.sender, _tokenHolder) ||
-                isOperatorForPartition(_partition, msg.sender, _tokenHolder),
+            isOperator(msg.sender) ||
+                isOperatorForPartition(_partition, msg.sender),
             "Not authorized"
         );
         _redeemByPartition(_partition, _tokenHolder, msg.sender, _value);
