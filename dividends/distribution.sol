@@ -1,107 +1,284 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.18;
 
 import "../1400/IERC1410.sol"; // Interface for the ERC1410 token contract
 import "../1400/openzeppelin/IERC20.sol"; // Interface for the ERC20 token contract
+import "../1400/openzeppelin/SafeMath.sol";
 
 contract DividendsDistribution {
-    IERC1410 public sharesToken; // ERC1410 shares token contract
-    address public dividendToken; // Address of the ERC20 token used for dividends (0x0 for ETH)
+    using SafeMath for uint256;
 
-    struct Distribution {
-        uint256 totalDividends;
-        uint256 totalSupply;
-        mapping(address => uint256) claimedDividends;
+    struct Dividend {
+        bytes32 partition;
+        uint256 blockNumber;
+        uint256 exDividendDate;
+        uint256 recordDate;
+        uint256 payoutDate;
+        uint256 amount;
+        uint256 totalSupplyOfShares;
+        address payoutToken;
+        bool isERC20Payout;
+        uint256 amountRemaining;
+        bool recycled;
+        mapping(address => bool) claimed;
     }
 
-    Distribution[] public distributions;
+    IERC1410 public sharesToken;
+    uint256 public reclaim_time;
+    mapping(address => uint256) public balances;
+    Dividend[] public dividends;
 
-    event DividendsDistributed(
-        uint256 indexed distributionIndex,
+    event DividendDeposited(
+        address indexed depositor,
+        uint256 dividendIndex,
+        uint256 blockNumber,
+        uint256 amount,
+        bytes32 partition,
+        bool isERC20
+    );
+    event DividendClaimed(
+        address indexed claimer,
+        uint256 dividendIndex,
+        uint256 amount,
+        bool isERC20
+    );
+    event DividendRecycled(
+        address indexed recycler,
+        uint256 dividendIndex,
         uint256 amount
     );
-    event DividendsClaimed(
-        address indexed account,
-        uint256 indexed distributionIndex,
-        uint256 amount
-    );
 
-    constructor(IERC1410 _sharesToken, address _dividendToken) {
+    modifier onlyOwnerOrManager() {
+        require(
+            sharesToken.isOwner(msg.sender) ||
+                sharesToken.isManager(msg.sender),
+            "Sender is not the owner or manager"
+        );
+        _;
+    }
+
+    constructor(IERC1410 _sharesToken, uint256 _reclaim_time) {
         sharesToken = _sharesToken;
-        dividendToken = _dividendToken;
+        reclaim_time = _reclaim_time;
     }
 
-    // Distribute dividends to all token holders
-    function distributeDividends() external payable {
-        uint256 amount = (dividendToken == address(0))
-            ? msg.value
-            : IERC20(dividendToken).balanceOf(address(this));
-        require(amount > 0, "No dividends to distribute");
-        uint256 totalSupply = sharesToken.totalSupply();
-
-        // Create a new distribution entry without initializing the mapping
-        distributions.push();
-        uint256 distributionIndex = distributions.length - 1;
-
-        // Set the values for the other fields of the struct
-        distributions[distributionIndex].totalDividends = amount;
-        distributions[distributionIndex].totalSupply = totalSupply;
-
-        emit DividendsDistributed(distributionIndex, amount);
-    }
-
-    // Claim dividends for the caller from a specific distribution
-    function claimDividends(uint256 distributionIndex) external {
+    function depositDividend(
+        uint256 _blockNumber,
+        uint256 _exDividendDate,
+        uint256 _recordDate,
+        uint256 _payoutDate,
+        uint256 _amount,
+        address _payoutToken,
+        bytes32 _partition
+    ) external onlyOwnerOrManager {
+        require(_amount > 0, "Amount must be greater than zero");
         require(
-            distributionIndex < distributions.length,
-            "Invalid distribution index"
+            _payoutDate > block.timestamp,
+            "Payout date must be in the future"
         );
-        Distribution storage distribution = distributions[distributionIndex];
-        uint256 claimableAmount = getClaimableDividends(
+
+        uint256 totalSupplyOfShares = sharesToken.totalSupplyAt(
+            _partition,
+            _blockNumber
+        );
+        require(
+            totalSupplyOfShares > 0,
+            "Total supply of shares must be greater than zero"
+        );
+
+        uint256 balance = sharesToken.balanceOf(address(this));
+        require(
+            balance >= totalSupplyOfShares,
+            "Contract must hold all shares"
+        );
+
+        balances[_payoutToken] = balances[_payoutToken].add(_amount);
+
+        uint256 dividendIndex = dividends.length;
+
+        dividends.push();
+        Dividend storage newDividend = dividends[dividendIndex];
+        newDividend.blockNumber = _blockNumber;
+        newDividend.partition = _partition;
+        newDividend.exDividendDate = _exDividendDate;
+        newDividend.recordDate = _recordDate;
+        newDividend.payoutDate = _payoutDate;
+        newDividend.amount = _amount;
+        newDividend.totalSupplyOfShares = totalSupplyOfShares;
+        newDividend.payoutToken = _payoutToken;
+        newDividend.isERC20Payout = (_payoutToken != address(0));
+        newDividend.amountRemaining = _amount;
+        newDividend.recycled = false;
+
+        emit DividendDeposited(
             msg.sender,
-            distributionIndex
+            dividendIndex,
+            _blockNumber,
+            _amount,
+            _partition,
+            _payoutToken != address(0)
         );
-        require(claimableAmount > 0, "No dividends to claim");
-        distribution.claimedDividends[msg.sender] += claimableAmount;
-        if (dividendToken == address(0)) {
-            payable(msg.sender).transfer(claimableAmount);
+    }
+
+    function claimDividend(uint256 _dividendIndex) external {
+        require(
+            _dividendIndex < dividends.length && _dividendIndex >= 0,
+            "Invalid dividend index"
+        );
+
+        Dividend storage dividend = dividends[_dividendIndex];
+        require(
+            block.timestamp >= dividend.payoutDate,
+            "Cannot claim dividend before payout date"
+        );
+        require(
+            !dividend.claimed[msg.sender],
+            "Dividend already claimed by the sender"
+        );
+        require(!dividend.recycled, "Dividend has been recycled");
+
+        uint256 shareBalance = sharesToken.balanceOfAt(
+            dividend.partition,
+            msg.sender,
+            dividend.blockNumber
+        );
+        require(shareBalance > 0, "Sender does not hold any shares");
+
+        uint256 claimAmount = dividend.amount.mul(shareBalance).div(
+            dividend.totalSupplyOfShares
+        );
+        require(
+            claimAmount <= dividend.amountRemaining,
+            "Insufficient remaining dividend amount"
+        );
+
+        dividend.claimed[msg.sender] = true;
+        dividend.amountRemaining = dividend.amountRemaining.sub(claimAmount);
+        if (dividend.isERC20Payout) {
+            require(
+                dividend.payoutToken != address(0),
+                "Invalid payout token address"
+            );
+            IERC20(dividend.payoutToken).transfer(msg.sender, claimAmount);
         } else {
-            IERC20(dividendToken).transfer(msg.sender, claimableAmount);
+            payable(msg.sender).transfer(claimAmount);
         }
-        emit DividendsClaimed(msg.sender, distributionIndex, claimableAmount);
+
+        emit DividendClaimed(
+            msg.sender,
+            _dividendIndex,
+            claimAmount,
+            dividend.isERC20Payout
+        );
     }
 
-    // Get the claimable dividends for an account from a specific distribution
-    function getClaimableDividends(
-        address account,
-        uint256 distributionIndex
-    ) public view returns (uint256) {
+    function recycleDividend(
+        uint256 _dividendIndex
+    ) external onlyOwnerOrManager {
+        require(_dividendIndex < dividends.length, "Invalid dividend index");
+
+        Dividend storage dividend = dividends[_dividendIndex];
+        require(!dividend.recycled, "Dividend has already been recycled");
         require(
-            distributionIndex < distributions.length,
-            "Invalid distribution index"
+            block.timestamp >= dividend.payoutDate.add(reclaim_time),
+            "Cannot recycle dividend before reclaim time"
         );
-        Distribution storage distribution = distributions[distributionIndex];
-        uint256 balance = sharesToken.balanceOf(account);
-        uint256 totalClaimed = distribution.claimedDividends[account];
-        return
-            ((distribution.totalDividends * balance) /
-                distribution.totalSupply) - totalClaimed;
+
+        uint256 remainingAmount = dividend.amountRemaining;
+        require(remainingAmount > 0, "No remaining dividend amount to recycle");
+
+        dividend.recycled = true;
+        balances[dividend.payoutToken] = balances[dividend.payoutToken].sub(
+            remainingAmount
+        );
+        dividend.amountRemaining = 0;
+
+        if (dividend.isERC20Payout) {
+            require(
+                dividend.payoutToken != address(0),
+                "Invalid payout token address"
+            );
+            IERC20(dividend.payoutToken).transfer(msg.sender, remainingAmount);
+        } else {
+            payable(msg.sender).transfer(remainingAmount);
+        }
+
+        emit DividendRecycled(msg.sender, _dividendIndex, remainingAmount);
     }
 
-    // Check if an account has claimed dividends from a specific distribution
-    function hasClaimedDividends(
-        address account,
-        uint256 distributionIndex
-    ) public view returns (bool) {
-        require(
-            distributionIndex < distributions.length,
-            "Invalid distribution index"
+    function getDividend(
+        uint256 _dividendIndex
+    )
+        external
+        view
+        returns (
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            uint256,
+            address,
+            bool,
+            uint256,
+            bytes32,
+            bool
+        )
+    {
+        require(_dividendIndex < dividends.length, "Invalid dividend index");
+
+        Dividend storage dividend = dividends[_dividendIndex];
+        return (
+            dividend.blockNumber,
+            dividend.exDividendDate,
+            dividend.recordDate,
+            dividend.payoutDate,
+            dividend.amount,
+            dividend.totalSupplyOfShares,
+            dividend.payoutToken,
+            dividend.isERC20Payout,
+            dividend.amountRemaining,
+            dividend.partition,
+            dividend.recycled
         );
-        Distribution storage distribution = distributions[distributionIndex];
-        uint256 totalClaimed = distribution.claimedDividends[account];
-        uint256 claimableAmount = ((distribution.totalDividends *
-            sharesToken.balanceOf(account)) / distribution.totalSupply);
-        return totalClaimed >= claimableAmount;
+    }
+
+    function getClaimableAmount(
+        address _address,
+        uint256 _dividendIndex
+    ) external view returns (uint256) {
+        require(_dividendIndex < dividends.length, "Invalid dividend index");
+        Dividend storage dividend = dividends[_dividendIndex];
+        if (block.timestamp < dividend.payoutDate) {
+            return 0;
+        }
+        if (
+            dividend.claimed[_address] ||
+            dividend.recycled ||
+            dividend.amountRemaining == 0 ||
+            sharesToken.balanceOf(_address) == 0
+        ) {
+            return 0;
+        }
+
+        uint256 shareBalance = sharesToken.balanceOfAt(
+            dividend.partition,
+            _address,
+            dividend.blockNumber
+        );
+        uint256 claimAmount = dividend.amount.mul(shareBalance).div(
+            dividend.totalSupplyOfShares
+        );
+        return claimAmount;
+    }
+
+    function hasClaimedDividend(
+        address _address,
+        uint256 _dividendIndex
+    ) external view returns (bool) {
+        require(_dividendIndex < dividends.length, "Invalid dividend index");
+        Dividend storage dividend = dividends[_dividendIndex];
+        return dividend.claimed[_address];
     }
 }

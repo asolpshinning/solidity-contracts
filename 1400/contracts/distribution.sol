@@ -2,9 +2,9 @@
 
 pragma solidity ^0.8.18;
 
-import "../1400/IERC1410.sol"; // Interface for the ERC1410 token contract
-import "../1400/openzeppelin/IERC20.sol"; // Interface for the ERC20 token contract
-import "../1400/openzeppelin/SafeMath.sol";
+import "../IERC1410.sol"; // Interface for the ERC1410 token contract
+import "../openzeppelin/IERC20.sol"; // Interface for the ERC20 token contract
+import "../openzeppelin/SafeMath.sol";
 
 contract DividendsDistribution {
     using SafeMath for uint256;
@@ -87,11 +87,8 @@ contract DividendsDistribution {
             "Total supply of shares must be greater than zero"
         );
 
-        uint256 balance = sharesToken.balanceOf(address(this));
-        require(
-            balance >= totalSupplyOfShares,
-            "Contract must hold all shares"
-        );
+        // Transfer the ERC20 tokens to this contract
+        IERC20(_payoutToken).transferFrom(msg.sender, address(this), _amount);
 
         balances[_payoutToken] = balances[_payoutToken].add(_amount);
 
@@ -205,43 +202,6 @@ contract DividendsDistribution {
         }
 
         emit DividendRecycled(msg.sender, _dividendIndex, remainingAmount);
-    }
-
-    function getDividend(
-        uint256 _dividendIndex
-    )
-        external
-        view
-        returns (
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            address,
-            bool,
-            uint256,
-            bytes32,
-            bool
-        )
-    {
-        require(_dividendIndex < dividends.length, "Invalid dividend index");
-
-        Dividend storage dividend = dividends[_dividendIndex];
-        return (
-            dividend.blockNumber,
-            dividend.exDividendDate,
-            dividend.recordDate,
-            dividend.payoutDate,
-            dividend.amount,
-            dividend.totalSupplyOfShares,
-            dividend.payoutToken,
-            dividend.isERC20Payout,
-            dividend.amountRemaining,
-            dividend.partition,
-            dividend.recycled
-        );
     }
 
     function getClaimableAmount(

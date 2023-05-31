@@ -307,9 +307,13 @@ contract SwapContract {
     /// @notice Fills a given order with a specific amount
     /// @dev Checks if the order is an ask order and fills it using `_fillAsk`, otherwise it fills it using `_fillBid`.
     /// @param orderId The id of the order to fill
-    function fillOrder(uint256 orderId) public payable onlyWhitelisted {
+    /// @param amt The amount to fill the order with if not already accepted (in the case of an ask order)
+    function fillOrder(
+        uint256 orderId,
+        uint256 amt
+    ) public payable onlyWhitelisted {
         if (orders[orderId].orderType.isAskOrder) {
-            _fillAsk(orderId);
+            _fillAsk(orderId, amt);
         } else {
             _fillBid(orderId);
         }
@@ -322,11 +326,17 @@ contract SwapContract {
     ///      It updates the orderAccepted of the order to false, after the order has been partially or fully filled.
     ///      Finally, it updates the filled amount of the order and the unclaimed proceeds of the initiator.
     /// @param orderId The id of the order to fill
-    function _fillAsk(uint256 orderId) internal {
+    function _fillAsk(uint256 orderId, uint256 amt) internal {
         uint256 amount = acceptedOrderQty[msg.sender][orderId];
-        require(canFillOrder(orderId, amount), "Order cannot be filled");
 
         Proceeds memory proceeds = unclaimedProceeds[orders[orderId].initiator];
+
+        if (orders[orderId].orderType.isAskOrder && !txnApprovalsEnabled) {
+            amount = amt;
+            orders[orderId].filler = msg.sender;
+        }
+
+        require(canFillOrder(orderId, amount), "Order cannot be filled");
 
         if (orders[orderId].orderType.isErc20Payment) {
             require(

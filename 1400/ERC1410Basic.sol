@@ -58,6 +58,24 @@ abstract contract ERC1410Basic is ERC1410Snapshot {
         return partitionTotalSupply[_partition];
     }
 
+    function _increaseTotalSupplyByPartition(
+        bytes32 _partition,
+        uint256 _amount
+    ) internal {
+        partitionTotalSupply[_partition] = partitionTotalSupply[_partition].add(
+            _amount
+        );
+    }
+
+    function _decreaseTotalSupplyByPartition(
+        bytes32 _partition,
+        uint256 _amount
+    ) internal {
+        partitionTotalSupply[_partition] = partitionTotalSupply[_partition].sub(
+            _amount
+        );
+    }
+
     /// @notice Counts the sum of all partitions balances assigned to an owner
     /// @param _tokenHolder An address for whom to query the balance
     /// @return The number of tokens owned by `_tokenHolder`, possibly zero

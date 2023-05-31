@@ -67,6 +67,8 @@ contract ERC1410Standard is ERC1410Operator {
         }
         _totalSupply = _totalSupply.add(_value);
         balances[_tokenHolder] = balances[_tokenHolder].add(_value);
+        _increaseTotalSupplyByPartition(_partition, _value);
+
         emit IssuedByPartition(_partition, _tokenHolder, _value);
     }
 
@@ -76,6 +78,20 @@ contract ERC1410Standard is ERC1410Operator {
         uint256 _value
     ) external onlyOwnerOrManager {
         _issueByPartition(_partition, _tokenHolder, _value);
+        // take snapshot of the partition balance of the holder
+        _takeSnapshot(
+            _getHolderSnapshots(_partition, _tokenHolder),
+            _partition,
+            _balanceOfByPartition(_partition, _tokenHolder),
+            true
+        );
+        // take snapshot of total supply
+        _takeSnapshot(
+            _getTotalSupplySnapshots(_partition),
+            _partition,
+            _totalSupplyByPartition(_partition),
+            false
+        );
     }
 
     function operatorIssueByPartition(
@@ -139,6 +155,7 @@ contract ERC1410Standard is ERC1410Operator {
         }
         balances[_from] = balances[_from].sub(_value);
         _totalSupply = _totalSupply.sub(_value);
+        _decreaseTotalSupplyByPartition(_partition, _value);
         _takeSnapshot(
             _getHolderSnapshots(_partition, _from),
             _partition,
