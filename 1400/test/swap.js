@@ -4,7 +4,7 @@ const { ethers } = require("hardhat");
 describe("Order Functions Testing", function () {
 
     async function setupOrderTesting() {
-        const [owner, addr1, addr2] = await ethers.getSigners();
+        const [owner, addr1, addr2, addr3] = await ethers.getSigners();
 
         const ShareToken = await ethers.getContractFactory("ERC1410Standard");
         const shareToken = await ShareToken.deploy();
@@ -15,7 +15,7 @@ describe("Order Functions Testing", function () {
         const SwapContract = await ethers.getContractFactory("SwapContract");
         const swapContract = await SwapContract.deploy(shareToken.address, paymentToken.address);
 
-        return { owner, addr1, addr2, shareToken, paymentToken, swapContract };
+        return { owner, addr1, addr2, addr3, shareToken, paymentToken, swapContract };
     }
 
     // Test cases for initiateOrder()
@@ -517,7 +517,7 @@ describe("Order Functions Testing", function () {
         await shareToken.connect(owner).addToWhitelist(addr1.address);
         await shareToken.connect(owner).addToWhitelist(addr2.address);
         await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount);
-        // make swapContract an authorized operator of addr1
+        // make swapContract an authorized operator
         await shareToken.connect(owner).authorizeOperator(swapContract.address);
         // initiate an order
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, true);
@@ -643,6 +643,136 @@ describe("Order Functions Testing", function () {
         await expect(swapContract.connect(addr2).fillOrder(0, amount)).to.be.revertedWith("Only initiator can fill bid orders. Only filler(who accepted order) can fill ask orders");
     });
 
+    it("Should allow a manager to approve an ask order and let another address fill", async function () {
+        const { owner, addr1, addr2, addr3, shareToken, paymentToken, swapContract } = await setupOrderTesting();
+        const partition = ethers.utils.formatBytes32String("partition1");
+        const amount = 100;
+        const price = 1;
+
+        await shareToken.connect(owner).addToWhitelist(addr1.address);
+        await shareToken.connect(owner).addToWhitelist(addr3.address);
+
+        // make swapContract an operator for shareToken
+        await shareToken.connect(owner).authorizeOperator(swapContract.address);
+        // make addr2 a manager
+        await shareToken.connect(owner).addManager(addr2.address);
+        // issue some shares to addr1
+        await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount);
+        // mint payment token to addr3
+        await paymentToken.connect(owner).mint(addr3.address, amount * price);
+        // addr3 increase allowance for swap contract
+        await paymentToken.connect(addr3).increaseAllowance(swapContract.address, amount * price);
+        // addr1 initiates an ask order
+        await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, true);
+        // enable transaction approvals
+        await swapContract.connect(owner).toggleTxnApprovals();
+        expect(await swapContract.txnApprovalsEnabled()).to.equal(true);
+        // addr3 accepts the order
+        await swapContract.connect(addr3).acceptOrder(0, amount);
+        // addr2 approves the order
+        await swapContract.connect(addr2).approveOrder(0);
+
+        const order = await swapContract.orders(0);
+        expect(order.status.isApproved).to.equal(true);
+
+        // addr3 fills the order
+        await swapContract.connect(addr3).fillOrder(0, amount);
+
+        // check total supply and share token balance of addr3
+        const checkBlock = await ethers.provider.getBlockNumber();
+        expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(amount);
+        expect(await shareToken.balanceOfAt(partition, addr3.address, checkBlock)).to.equal(amount);
+    });
+
+    it("Should allow a manager/owner to intiate shareIssuance ask order and let another address fill", async function () {
+        const { owner, addr1, addr2, addr3, shareToken, paymentToken, swapContract } = await setupOrderTesting();
+        const partition = ethers.utils.formatBytes32String("partition1");
+        const amount = 100;
+        const price = 1;
+
+        await shareToken.connect(owner).addToWhitelist(addr1.address);
+        await shareToken.connect(owner).addToWhitelist(addr3.address);
+
+        // make swapContract an operator for shareToken
+        await shareToken.connect(owner).authorizeOperator(swapContract.address);
+        // make addr2 a manager
+        await shareToken.connect(owner).addManager(addr2.address);
+        let manager = addr2
+        // mint payment token to addr3
+        await paymentToken.connect(owner).mint(addr3.address, 2 * amount * price);
+        // addr3 increase allowance for swap contract
+        await paymentToken.connect(addr3).increaseAllowance(swapContract.address, 2 * amount * price);
+        // addr2 (manager) initiates an ask order
+        await swapContract.connect(manager).initiateOrder(partition, amount, price, true, true, true);
+        // owner initiates an ask order
+        await swapContract.connect(owner).initiateOrder(partition, amount, price, true, true, true);
+        // enable transaction approvals
+        await swapContract.connect(owner).toggleTxnApprovals();
+        expect(await swapContract.txnApprovalsEnabled()).to.equal(true);
+        // addr3 accepts the orders
+        await swapContract.connect(addr3).acceptOrder(0, amount);
+        await swapContract.connect(addr3).acceptOrder(1, amount);
+        // addr2 (manager) approves the first order and second order
+        await swapContract.connect(manager).approveOrder(0);
+        await swapContract.connect(manager).approveOrder(1);
+
+        const order = await swapContract.orders(0);
+        expect(order.status.isApproved).to.equal(true);
+
+        // addr3 fills the orders
+        await swapContract.connect(addr3).fillOrder(0, amount);
+        await swapContract.connect(addr3).fillOrder(1, amount);
+
+        // check balance of addr3
+        expect(await shareToken.balanceOfByPartition(partition, addr3.address)).to.equal(2 * amount);
+
+        // check total supply and share token balance of addr3 based on snapshot
+        const checkBlock = await ethers.provider.getBlockNumber();
+        expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(2 * amount);
+        expect(await shareToken.balanceOfAt(partition, addr3.address, checkBlock)).to.equal(2 * amount);
+    });
+
+    it("Should allow an address to intiate shareIssuance bid order and let the address fill", async function () {
+        const { owner, addr1, addr2, addr3, shareToken, paymentToken, swapContract } = await setupOrderTesting();
+        const partition = ethers.utils.formatBytes32String("partition1");
+        const amount = 100;
+        const price = 1;
+
+        await shareToken.connect(owner).addToWhitelist(addr1.address);
+        await shareToken.connect(owner).addToWhitelist(addr3.address);
+
+        // make swapContract an operator for shareToken
+        await shareToken.connect(owner).authorizeOperator(swapContract.address);
+        // make addr2 a manager
+        await shareToken.connect(owner).addManager(addr2.address);
+        let manager = addr2
+        // mint payment token to addr3
+        await paymentToken.connect(owner).mint(addr3.address, amount * price);
+        // addr3 increase allowance for swap contract
+        await paymentToken.connect(addr3).increaseAllowance(swapContract.address, amount * price);
+        // addr1 initiates an ask order
+        await swapContract.connect(addr3).initiateOrder(partition, amount, price, false, true, true);
+
+        // enable transaction approvals
+        await swapContract.connect(owner).toggleTxnApprovals();
+        expect(await swapContract.txnApprovalsEnabled()).to.equal(true);
+        // addr2 (manager) approves the order
+        await swapContract.connect(manager).approveOrder(0);
+
+        const order = await swapContract.orders(0);
+        expect(order.status.isApproved).to.equal(true);
+
+        // addr3 fills the order
+        await swapContract.connect(addr3).fillOrder(0, amount);
+
+        // check balance of addr3
+        expect(await shareToken.balanceOfByPartition(partition, addr3.address)).to.equal(amount);
+
+        // check total supply and share token balance of addr3 based on snapshot
+        const checkBlock = await ethers.provider.getBlockNumber();
+        expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(amount);
+        expect(await shareToken.balanceOfAt(partition, addr3.address, checkBlock)).to.equal(amount);
+    });
     // Test Cases for Cancelling an Order
 
     it("Should allow the initiator to cancel an order", async function () {

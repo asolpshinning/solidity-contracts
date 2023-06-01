@@ -23,6 +23,8 @@ contract ERC1410Standard is ERC1410Operator {
         uint256 value
     );
 
+    string public contractVersion = "0.1.0"; /// The version of the contract.
+
     /**
      * @return true if `msg.sender` is the owner of the contract.
      */
@@ -68,7 +70,6 @@ contract ERC1410Standard is ERC1410Operator {
         _totalSupply = _totalSupply.add(_value);
         balances[_tokenHolder] = balances[_tokenHolder].add(_value);
         _increaseTotalSupplyByPartition(_partition, _value);
-
         emit IssuedByPartition(_partition, _tokenHolder, _value);
     }
 
@@ -100,6 +101,20 @@ contract ERC1410Standard is ERC1410Operator {
         uint256 _value
     ) external onlyOperatorForPartition(_partition, _tokenHolder) {
         _issueByPartition(_partition, _tokenHolder, _value);
+        // take snapshot of the partition balance of the holder
+        _takeSnapshot(
+            _getHolderSnapshots(_partition, _tokenHolder),
+            _partition,
+            _balanceOfByPartition(_partition, _tokenHolder),
+            true
+        );
+        // take snapshot of total supply
+        _takeSnapshot(
+            _getTotalSupplySnapshots(_partition),
+            _partition,
+            _totalSupplyByPartition(_partition),
+            false
+        );
     }
 
     /// @notice Decreases totalSupply and the corresponding amount of the specified partition of msg.sender
@@ -155,7 +170,6 @@ contract ERC1410Standard is ERC1410Operator {
         }
         balances[_from] = balances[_from].sub(_value);
         _totalSupply = _totalSupply.sub(_value);
-        _decreaseTotalSupplyByPartition(_partition, _value);
         _takeSnapshot(
             _getHolderSnapshots(_partition, _from),
             _partition,

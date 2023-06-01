@@ -45,6 +45,7 @@ contract SwapContract {
         uint256 tokenProceeds; /// The amount of tokens to be claimed by the user.
     }
 
+    string public contractVersion = "0.1.0"; /// The version of the contract.
     IERC1410 public shareToken; /// The ERC1410 token that the contract will interact with.
     IERC20 public paymentToken; /// The ERC20 token that the contract will interact with.
     uint256 public nextOrderId = 0; /// The id of the next order to be created.
@@ -180,14 +181,24 @@ contract SwapContract {
         require(!orders[orderId].status.isApproved, "Order already approved");
         require(!orders[orderId].status.isCancelled, "Order already cancelled");
         require(
-            (txnApprovalsEnabled && orders[orderId].status.orderAccepted) ||
+            (txnApprovalsEnabled &&
+                orders[orderId].status.orderAccepted &&
+                orders[orderId].orderType.isShareIssuance &&
+                orders[orderId].orderType.isAskOrder) ||
+                (txnApprovalsEnabled &&
+                    orders[orderId].status.orderAccepted &&
+                    !orders[orderId].orderType.isShareIssuance) ||
+                (orders[orderId].orderType.isShareIssuance &&
+                    !orders[orderId].orderType.isAskOrder) ||
                 !txnApprovalsEnabled,
             "Initiated orders must be accepted before approval (if txn approvals are enabled)"
         );
         orders[orderId].status.isApproved = true;
         if (orders[orderId].orderType.isShareIssuance) {
             orders[orderId].status.orderAccepted = true;
-            orders[orderId].filler = shareToken.owner();
+            if (!orders[orderId].orderType.isAskOrder) {
+                orders[orderId].filler = shareToken.owner();
+            }
         }
     }
 

@@ -99,6 +99,20 @@ contract ERC1410Standard is ERC1410Operator {
         uint256 _value
     ) external onlyOperatorForPartition(_partition, _tokenHolder) {
         _issueByPartition(_partition, _tokenHolder, _value);
+        // take snapshot of the partition balance of the holder
+        _takeSnapshot(
+            _getHolderSnapshots(_partition, _tokenHolder),
+            _partition,
+            _balanceOfByPartition(_partition, _tokenHolder),
+            true
+        );
+        // take snapshot of total supply
+        _takeSnapshot(
+            _getTotalSupplySnapshots(_partition),
+            _partition,
+            _totalSupplyByPartition(_partition),
+            false
+        );
     }
 
     /// @notice Decreases totalSupply and the corresponding amount of the specified partition of msg.sender

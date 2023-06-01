@@ -24,6 +24,7 @@ contract DividendsDistribution {
         mapping(address => bool) claimed;
     }
 
+    string public contractVersion = "0.1.0";
     IERC1410 public sharesToken;
     uint256 public reclaim_time;
     mapping(address => uint256) public balances;
