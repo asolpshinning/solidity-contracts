@@ -328,6 +328,9 @@ contract SwapContract {
         } else {
             _fillBid(orderId);
         }
+        if (txnApprovalsEnabled) {
+            orders[orderId].status.isApproved = false;
+        }
     }
 
     /// @notice Fills a sale order

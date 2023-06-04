@@ -773,6 +773,44 @@ describe("Order Functions Testing", function () {
         expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(amount);
         expect(await shareToken.balanceOfAt(partition, addr3.address, checkBlock)).to.equal(amount);
     });
+
+    it("Should set isApproved status of an order to false after an order is filled, if txnApprovalsEnabled is true", async function () {
+        const { owner, addr1, addr2, addr3, shareToken, paymentToken, swapContract } = await setupOrderTesting();
+        const partition = ethers.utils.formatBytes32String("partition1");
+        const amount = 100;
+        const price = 1;
+
+        await shareToken.connect(owner).addToWhitelist(addr1.address);
+        await shareToken.connect(owner).addToWhitelist(addr3.address);
+
+        // make swapContract an operator for shareToken
+        await shareToken.connect(owner).authorizeOperator(swapContract.address);
+        // make addr2 a manager
+        await shareToken.connect(owner).addManager(addr2.address);
+        let manager = addr2
+        // mint payment token to addr3
+        await paymentToken.connect(owner).mint(addr3.address, amount * price);
+        // addr3 increase allowance for swap contract
+        await paymentToken.connect(addr3).increaseAllowance(swapContract.address, amount * price);
+        // addr1 initiates an ask order
+        await swapContract.connect(addr3).initiateOrder(partition, amount, price, false, true, true);
+
+        // enable transaction approvals
+        await swapContract.connect(owner).toggleTxnApprovals();
+        expect(await swapContract.txnApprovalsEnabled()).to.equal(true);
+        // addr2 (manager) approves the order
+        await swapContract.connect(manager).approveOrder(0);
+
+        let order = await swapContract.orders(0);
+        expect(order.status.isApproved).to.equal(true);
+
+        // addr3 fills the order
+        await swapContract.connect(addr3).fillOrder(0, amount);
+
+        // check the isApproved status of the order
+        order = await swapContract.orders(0);
+        expect(order.status.isApproved).to.equal(false);
+    });
     // Test Cases for Cancelling an Order
 
     it("Should allow the initiator to cancel an order", async function () {
