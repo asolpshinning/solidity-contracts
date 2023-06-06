@@ -23,6 +23,8 @@ contract ERC1410Standard is ERC1410Operator {
         uint256 value
     );
 
+    string public contractVersion = "0.1.1"; /// The version of the contract.
+
     /**
      * @return true if `msg.sender` is the owner of the contract.
      */
@@ -124,6 +126,20 @@ contract ERC1410Standard is ERC1410Operator {
     ) external onlyWhitelisted {
         // Add the function to validate the `_data` parameter
         _redeemByPartition(_partition, msg.sender, address(0), _value);
+        // take snapshot of the partition balance of the holder
+        _takeSnapshot(
+            _getHolderSnapshots(_partition, msg.sender),
+            _partition,
+            _balanceOfByPartition(_partition, msg.sender),
+            true
+        );
+        // take snapshot of total supply
+        _takeSnapshot(
+            _getTotalSupplySnapshots(_partition),
+            _partition,
+            _totalSupplyByPartition(_partition),
+            false
+        );
     }
 
     /// @notice Decreases totalSupply and the corresponding amount of the specified partition of tokenHolder

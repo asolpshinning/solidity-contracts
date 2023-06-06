@@ -82,8 +82,19 @@ describe("DividendsDistribution", function () {
         await ethers.provider.send("evm_setNextBlockTimestamp", [payoutDate]);
         await ethers.provider.send("evm_mine");
 
+        // check the claimable dividend amount of addr1
+        expect(await dividendsDistribution.getClaimableAmount(addr1.address, 0)).to.equal(dividendAmount);
+
         await dividendsDistribution.connect(addr1).claimDividend(0);
         expect(await dividendsDistribution.hasClaimedDividend(addr1.address, 0)).to.be.true;
+
+        // check payoutToken balance of dividendsDistribution contract
+        expect(await payoutToken.balanceOf(dividendsDistribution.address)).to.equal(0);
+        // check payoutToken balance of addr1
+        expect(await payoutToken.balanceOf(addr1.address)).to.equal(dividendAmount);
+
+        // check the claimable dividend amount of addr1
+        expect(await dividendsDistribution.getClaimableAmount(addr1.address, 0)).to.equal(0);
     });
 
     it("Should fail if when claiming dividend, dividend index is invalid", async function () {
@@ -169,12 +180,34 @@ describe("DividendsDistribution", function () {
         await ethers.provider.send("evm_setNextBlockTimestamp", [payoutDate + 20]);
         await ethers.provider.send("evm_mine");
 
+        // check that each investor has 0 payout token balance
+        let balance1 = await payoutToken.balanceOf(addr1.address);
+        let balance2 = await payoutToken.balanceOf(addr2.address);
+        let balance3 = await payoutToken.balanceOf(addr3.address);
+        expect(balance1).to.equal(0);
+        expect(balance2).to.equal(0);
+        expect(balance3).to.equal(0);
+
+        // get claimable amounts
+        let claimable1 = await dividendsDistribution.getClaimableAmount(addr1.address, 0);
+        let claimable2 = await dividendsDistribution.getClaimableAmount(addr2.address, 0);
+        let claimable3 = await dividendsDistribution.getClaimableAmount(addr3.address, 0);
+
+        expect(claimable1).to.greaterThanOrEqual(ethers.utils.parseEther("570"));
+        expect(claimable1).to.lessThanOrEqual(ethers.utils.parseEther("660"));
+        expect(claimable2).to.greaterThanOrEqual(ethers.utils.parseEther("285"));
+        expect(claimable2).to.lessThanOrEqual(ethers.utils.parseEther("330"));
+        expect(claimable3).to.greaterThanOrEqual(ethers.utils.parseEther("190"));
+        expect(claimable3).to.lessThanOrEqual(ethers.utils.parseEther("220"));
+
+        // claim dividends
         await dividendsDistribution.connect(addr1).claimDividend(0);
         expect(await dividendsDistribution.hasClaimedDividend(addr1.address, 0)).to.be.true;
         await dividendsDistribution.connect(addr2).claimDividend(0);
         expect(await dividendsDistribution.hasClaimedDividend(addr2.address, 0)).to.be.true;
         await dividendsDistribution.connect(addr3).claimDividend(0);
         expect(await dividendsDistribution.hasClaimedDividend(addr3.address, 0)).to.be.true;
+
 
         // check that the correct amount was transferred to each investor
         expect(await payoutToken.balanceOf(addr1.address)).to.greaterThanOrEqual(ethers.utils.parseEther("570"));
@@ -185,12 +218,20 @@ describe("DividendsDistribution", function () {
         expect(await payoutToken.balanceOf(addr3.address)).to.lessThanOrEqual(ethers.utils.parseEther("220"));
 
         // get claimable amount for each investor
-        const claimable1 = await dividendsDistribution.getClaimableAmount(addr1.address, 0);
-        const claimable2 = await dividendsDistribution.getClaimableAmount(addr2.address, 0);
-        const claimable3 = await dividendsDistribution.getClaimableAmount(addr3.address, 0);
+        claimable1 = await dividendsDistribution.getClaimableAmount(addr1.address, 0);
+        claimable2 = await dividendsDistribution.getClaimableAmount(addr2.address, 0);
+        claimable3 = await dividendsDistribution.getClaimableAmount(addr3.address, 0);
         expect(claimable1).to.equal(0);
         expect(claimable2).to.equal(0);
         expect(claimable3).to.equal(0);
+
+        // check that the correct amount was transferred to each investor
+        expect(await payoutToken.balanceOf(addr1.address)).to.greaterThanOrEqual(ethers.utils.parseEther("570"));
+        expect(await payoutToken.balanceOf(addr1.address)).to.lessThanOrEqual(ethers.utils.parseEther("660"));
+        expect(await payoutToken.balanceOf(addr2.address)).to.greaterThanOrEqual(ethers.utils.parseEther("285"));
+        expect(await payoutToken.balanceOf(addr2.address)).to.lessThanOrEqual(ethers.utils.parseEther("330"));
+        expect(await payoutToken.balanceOf(addr3.address)).to.greaterThanOrEqual(ethers.utils.parseEther("190"));
+        expect(await payoutToken.balanceOf(addr3.address)).to.lessThanOrEqual(ethers.utils.parseEther("220"));
 
     });
 });

@@ -24,7 +24,7 @@ contract DividendsDistribution {
         mapping(address => bool) claimed;
     }
 
-    string public contractVersion = "0.1.0";
+    string public contractVersion = "0.1.1";
     IERC1410 public sharesToken;
     uint256 public reclaim_time;
     mapping(address => uint256) public balances;
@@ -72,7 +72,7 @@ contract DividendsDistribution {
         uint256 _amount,
         address _payoutToken,
         bytes32 _partition
-    ) external onlyOwnerOrManager {
+    ) external onlyOwnerOrManager returns (uint256) {
         require(_amount > 0, "Amount must be greater than zero");
         require(
             _payoutDate > block.timestamp,
@@ -117,6 +117,8 @@ contract DividendsDistribution {
             _partition,
             _payoutToken != address(0)
         );
+
+        return dividendIndex;
     }
 
     function claimDividend(uint256 _dividendIndex) external {
