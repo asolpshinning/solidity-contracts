@@ -24,9 +24,11 @@ contract DividendsDistribution {
         mapping(address => bool) claimed;
     }
 
+    string public contractVersion = "0.1.2";
     IERC1410 public sharesToken;
     uint256 public reclaim_time;
     mapping(address => uint256) public balances;
+    mapping(address => mapping(uint256 => uint256)) public claimedAmount;
     Dividend[] public dividends;
 
     event DividendDeposited(
@@ -71,7 +73,7 @@ contract DividendsDistribution {
         uint256 _amount,
         address _payoutToken,
         bytes32 _partition
-    ) external onlyOwnerOrManager {
+    ) external onlyOwnerOrManager returns (uint256) {
         require(_amount > 0, "Amount must be greater than zero");
         require(
             _payoutDate > block.timestamp,
@@ -87,11 +89,8 @@ contract DividendsDistribution {
             "Total supply of shares must be greater than zero"
         );
 
-        uint256 balance = sharesToken.balanceOf(address(this));
-        require(
-            balance >= totalSupplyOfShares,
-            "Contract must hold all shares"
-        );
+        // Transfer the ERC20 tokens to this contract
+        IERC20(_payoutToken).transferFrom(msg.sender, address(this), _amount);
 
         balances[_payoutToken] = balances[_payoutToken].add(_amount);
 
@@ -119,6 +118,8 @@ contract DividendsDistribution {
             _partition,
             _payoutToken != address(0)
         );
+
+        return dividendIndex;
     }
 
     function claimDividend(uint256 _dividendIndex) external {
@@ -153,8 +154,6 @@ contract DividendsDistribution {
             "Insufficient remaining dividend amount"
         );
 
-        dividend.claimed[msg.sender] = true;
-        dividend.amountRemaining = dividend.amountRemaining.sub(claimAmount);
         if (dividend.isERC20Payout) {
             require(
                 dividend.payoutToken != address(0),
@@ -164,6 +163,12 @@ contract DividendsDistribution {
         } else {
             payable(msg.sender).transfer(claimAmount);
         }
+
+        dividend.claimed[msg.sender] = true;
+        dividend.amountRemaining = dividend.amountRemaining.sub(claimAmount);
+        claimedAmount[msg.sender][_dividendIndex] = claimedAmount[msg.sender][
+            _dividendIndex
+        ].add(claimAmount);
 
         emit DividendClaimed(
             msg.sender,
@@ -205,43 +210,6 @@ contract DividendsDistribution {
         }
 
         emit DividendRecycled(msg.sender, _dividendIndex, remainingAmount);
-    }
-
-    function getDividend(
-        uint256 _dividendIndex
-    )
-        external
-        view
-        returns (
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            uint256,
-            address,
-            bool,
-            uint256,
-            bytes32,
-            bool
-        )
-    {
-        require(_dividendIndex < dividends.length, "Invalid dividend index");
-
-        Dividend storage dividend = dividends[_dividendIndex];
-        return (
-            dividend.blockNumber,
-            dividend.exDividendDate,
-            dividend.recordDate,
-            dividend.payoutDate,
-            dividend.amount,
-            dividend.totalSupplyOfShares,
-            dividend.payoutToken,
-            dividend.isERC20Payout,
-            dividend.amountRemaining,
-            dividend.partition,
-            dividend.recycled
-        );
     }
 
     function getClaimableAmount(
