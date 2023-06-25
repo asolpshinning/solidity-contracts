@@ -178,9 +178,11 @@ contract DividendsDistribution {
         );
     }
 
-    function recycleDividend(
-        uint256 _dividendIndex
-    ) external onlyOwnerOrManager {
+    function reclaimDividend(uint256 _dividendIndex) external {
+        require(
+            sharesToken.isOwner(msg.sender),
+            "Only owner can reclaim dividend"
+        );
         require(_dividendIndex < dividends.length, "Invalid dividend index");
 
         Dividend storage dividend = dividends[_dividendIndex];

@@ -57,7 +57,7 @@ describe("DividendsDistribution", function () {
         await ethers.provider.send("evm_setNextBlockTimestamp", [reclaimTime]);
         await ethers.provider.send("evm_mine");
 
-        await dividendsDistribution.connect(owner).recycleDividend(0);
+        await dividendsDistribution.connect(owner).reclaimDividend(0);
         let dividend = await dividendsDistribution.dividends(0);
         expect(dividend.recycled).to.equal(true);
     });
@@ -141,7 +141,7 @@ describe("DividendsDistribution", function () {
         await ethers.provider.send("evm_setNextBlockTimestamp", [reclaimTime]);
         await ethers.provider.send("evm_mine");
 
-        await dividendsDistribution.connect(owner).recycleDividend(0);
+        await dividendsDistribution.connect(owner).reclaimDividend(0);
         await expect(dividendsDistribution.connect(addr1).claimDividend(0)).to.be.revertedWith("Dividend has been recycled");
     });
 
