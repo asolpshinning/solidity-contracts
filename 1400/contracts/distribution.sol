@@ -24,10 +24,11 @@ contract DividendsDistribution {
         mapping(address => bool) claimed;
     }
 
-    string public contractVersion = "0.1.1";
+    string public contractVersion = "0.1.2";
     IERC1410 public sharesToken;
     uint256 public reclaim_time;
     mapping(address => uint256) public balances;
+    mapping(address => mapping(uint256 => uint256)) public claimedAmount;
     Dividend[] public dividends;
 
     event DividendDeposited(
@@ -153,8 +154,6 @@ contract DividendsDistribution {
             "Insufficient remaining dividend amount"
         );
 
-        dividend.claimed[msg.sender] = true;
-        dividend.amountRemaining = dividend.amountRemaining.sub(claimAmount);
         if (dividend.isERC20Payout) {
             require(
                 dividend.payoutToken != address(0),
@@ -164,6 +163,12 @@ contract DividendsDistribution {
         } else {
             payable(msg.sender).transfer(claimAmount);
         }
+
+        dividend.claimed[msg.sender] = true;
+        dividend.amountRemaining = dividend.amountRemaining.sub(claimAmount);
+        claimedAmount[msg.sender][_dividendIndex] = claimedAmount[msg.sender][
+            _dividendIndex
+        ].add(claimAmount);
 
         emit DividendClaimed(
             msg.sender,
