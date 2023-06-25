@@ -1023,7 +1023,7 @@ describe("Orders and Swap Functions Testing", function () {
         expect(contractTokenBalance).to.equal(0);
     });
 
-    it("Should allow manager to unsafe withdraw all proceeds", async function () {
+    it("Should not allow manager to unsafe withdraw all proceeds", async function () {
         const { owner, addr1, addr2, shareToken, paymentToken, swapContract } = await setupOrderTesting();
 
         const partition = ethers.utils.formatBytes32String("partition1");
@@ -1043,12 +1043,7 @@ describe("Orders and Swap Functions Testing", function () {
         await swapContract.connect(addr2).acceptOrder(0, amount);
         await swapContract.connect(addr2).fillOrder(0, amount);
 
-        await swapContract.connect(manager).UnsafeWithdrawAllProceeds();
-
-        const contractEthBalance = await ethers.provider.getBalance(swapContract.address);
-        const contractTokenBalance = await paymentToken.balanceOf(swapContract.address);
-        expect(contractEthBalance).to.equal(0);
-        expect(contractTokenBalance).to.equal(0);
+        await expect(swapContract.connect(manager).UnsafeWithdrawAllProceeds()).to.be.revertedWith("Only owner can withdraw");
     });
 
     it("Should not allow non-owner and non-manager to unsafe withdraw all proceeds", async function () {
@@ -1070,7 +1065,7 @@ describe("Orders and Swap Functions Testing", function () {
         await swapContract.connect(addr2).acceptOrder(0, amount);
         await swapContract.connect(addr2).fillOrder(0, amount);
 
-        await expect(swapContract.connect(addr2).UnsafeWithdrawAllProceeds()).to.be.revertedWith("Sender is not the owner or manager");
+        await expect(swapContract.connect(addr2).UnsafeWithdrawAllProceeds()).to.be.revertedWith("Only owner can withdraw");
     });
 
     it("Should emit ProceedsWithdrawn event on successful UnsafeWithdrawAllProceeds call", async function () {
@@ -1147,8 +1142,3 @@ describe("Additional Test Cases Including Snapshot Balances Checking After Trans
     });
 
 });
-
-
-
-
-

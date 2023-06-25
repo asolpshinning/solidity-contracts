@@ -45,7 +45,7 @@ contract SwapContract {
         uint256 tokenProceeds; /// The amount of tokens to be claimed by the user.
     }
 
-    string public contractVersion = "0.1.1"; /// The version of the contract.
+    string public contractVersion = "0.1.2"; /// The version of the contract.
     IERC1410 public shareToken; /// The ERC1410 token that the contract will interact with.
     IERC20 public paymentToken; /// The ERC20 token that the contract will interact with.
     uint256 public nextOrderId = 0; /// The id of the next order to be created.
@@ -222,6 +222,8 @@ contract SwapContract {
             "Order already fully filled"
         );
         orders[orderId].status.isDisapproved = true;
+        orders[orderId].status.isApproved = false;
+        orders[orderId].status.orderAccepted = false;
     }
 
     /// @notice Accepts a given order
@@ -265,6 +267,22 @@ contract SwapContract {
         orders[orderId].filler = msg.sender;
         acceptedOrderQty[msg.sender][orderId] = amount;
     }
+
+    /// @notice Cancels the acceptance of a given order
+    /// @dev Only a whitelisted address can call this function.
+    ///      Checks that the order has been accepted and that the message sender is the filler of the order.
+    ///      Finally, it marks the order as not accepted and sets the filler to address(0).
+    /// @param orderId The id of the order to cancel acceptance of
+    /* function cancelAcceptance(uint256 orderId) public onlyWhitelisted {
+        require(orders[orderId].status.orderAccepted, "Order not accepted");
+        require(
+            orders[orderId].filler == msg.sender,
+            "Only filler can cancel acceptance"
+        );
+        orders[orderId].status.orderAccepted = false;
+        orders[orderId].filler = address(0);
+        acceptedOrderQty[msg.sender][orderId] = 0;
+    } */
 
     /// @notice Checks whether a given order can be filled with a specific amount
     /// @dev Checks if the order has not been cancelled, that it has been approved and that it won't be overfilled by filling it with the specified amount.
@@ -522,13 +540,12 @@ contract SwapContract {
     /// @dev This function can only be called by the owner or a manager
     ///      This function is unsafe as investors who have not claimed their proceeds will not be able to do so after this function is called
     /// @return success A boolean indicating whether the withdrawal was successful
-    function UnsafeWithdrawAllProceeds()
-        public
-        onlyOwnerOrManager
-        returns (bool success)
-    {
+    function UnsafeWithdrawAllProceeds() public returns (bool success) {
         uint256 ethAmount = address(this).balance;
         uint256 tokenAmount = paymentToken.balanceOf(address(this));
+
+        // require only owner can withdraw
+        require(msg.sender == shareToken.owner(), "Only owner can withdraw");
 
         // Ensuring the contract has ether balance before attempting transfer
         if (ethAmount > 0) {
@@ -566,56 +583,4 @@ contract SwapContract {
     function banAddress(address _address) external onlyOwnerOrManager {
         cannotPurchase[_address] = true;
     }
-
-    /*   /// @notice Returns the current status of swap approvals
-    /// @dev This function doesn't modify state and can be freely called.
-    /// @return The current status of swap approvals
-    function isSwapApprovalEnabled() external view returns (bool) {
-        return swapApprovalsEnabled;
-    }
-
-    /// @notice Returns the current status of transaction approvals
-    /// @dev This function doesn't modify state and can be freely called.
-    /// @return The current status of transaction approvals
-    function isTxnApprovalEnabled() external view returns (bool) {
-        return txnApprovalsEnabled;
-    }
-
-    /// @notice Fetches details of an order
-    /// @param orderId The id of the order whose details are to be fetched
-    /// @return The Order struct of the specified order
-    function getOrderDetails(
-        uint256 orderId
-    ) public view returns (Order memory) {
-        return orders[orderId];
-    }
-
-    /// @notice Fetches the unclaimed proceeds of a user
-    /// @param user The address of the user whose unclaimed proceeds are to be fetched
-    /// @return The Proceeds struct of the specified user
-    function getUnclaimedProceeds(
-        address user
-    ) public view returns (Proceeds memory) {
-        return unclaimedProceeds[user];
-    }
-
-    /// @notice Fetches the balance of ETH held by the contract
-    /// @return The amount of ETH (in wei) held by the contract
-    function getBalanceETH() public view returns (uint256) {
-        return address(this).balance;
-    }
-
-    /// @notice Fetches the balance of the payment token held by the contract
-    /// @return The amount of the payment token held by the contract
-    function getBalanceERC20() public view returns (uint256) {
-        return paymentToken.balanceOf(address(this));
-    }
-
-    /// @notice Returns the banned status of an address in terms of making purchases
-    /// @dev This function doesn't modify state and can be freely called.
-    /// @param _address The address to check
-    /// @return The banned status of the address
-    function isBanned(address _address) external view returns (bool) {
-        return cannotPurchase[_address];
-    } */
 }
