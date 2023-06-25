@@ -23,7 +23,7 @@ contract ERC1410Standard is ERC1410Operator {
         uint256 value
     );
 
-    string public contractVersion = "0.1.2"; /// The version of the contract.
+    string public contractVersion = "0.1.3"; /// The version of the contract.
 
     /**
      * @return true if `msg.sender` is the owner of the contract.
