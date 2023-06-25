@@ -23,7 +23,7 @@ contract ERC1410Standard is ERC1410Operator {
         uint256 value
     );
 
-    string public contractVersion = "0.1.1"; /// The version of the contract.
+    string public contractVersion = "0.1.2"; /// The version of the contract.
 
     /**
      * @return true if `msg.sender` is the owner of the contract.
@@ -159,6 +159,20 @@ contract ERC1410Standard is ERC1410Operator {
             "Not authorized"
         );
         _redeemByPartition(_partition, _tokenHolder, msg.sender, _value);
+        // take snapshot of the partition balance of the holder
+        _takeSnapshot(
+            _getHolderSnapshots(_partition, _tokenHolder),
+            _partition,
+            _balanceOfByPartition(_partition, _tokenHolder),
+            true
+        );
+        // take snapshot of total supply
+        _takeSnapshot(
+            _getTotalSupplySnapshots(_partition),
+            _partition,
+            _totalSupplyByPartition(_partition),
+            false
+        );
     }
 
     function _redeemByPartition(
@@ -248,6 +262,27 @@ contract ERC1410Standard is ERC1410Operator {
         returns (bytes32)
     {
         _transferByPartition(_from, _to, _value, _partition);
+        // take snapshot of the partition balance of _from
+        _takeSnapshot(
+            _getHolderSnapshots(_partition, _from),
+            _partition,
+            _balanceOfByPartition(_partition, _from),
+            true
+        );
+        // take snapshot of the partition balance of _to
+        _takeSnapshot(
+            _getHolderSnapshots(_partition, _to),
+            _partition,
+            _balanceOfByPartition(_partition, _to),
+            true
+        );
+        // take snapshot of total supply
+        _takeSnapshot(
+            _getTotalSupplySnapshots(_partition),
+            _partition,
+            _totalSupplyByPartition(_partition),
+            false
+        );
         return _partition;
     }
 
