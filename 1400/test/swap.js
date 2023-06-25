@@ -684,7 +684,7 @@ describe("Orders and Swap Functions Testing", function () {
         expect(await shareToken.balanceOfAt(partition, addr3.address, checkBlock)).to.equal(amount);
     });
 
-    it("Should allow a manager/owner to intiate shareIssuance ask order and let another address fill", async function () {
+    it("Should allow a manager/owner to initiate shareIssuance ask order and let another address fill", async function () {
         const { owner, addr1, addr2, addr3, shareToken, paymentToken, swapContract } = await setupOrderTesting();
         const partition = ethers.utils.formatBytes32String("partition1");
         const amount = 100;
@@ -771,6 +771,7 @@ describe("Orders and Swap Functions Testing", function () {
         // check total supply and share token balance of addr3 based on snapshot
         const checkBlock = await ethers.provider.getBlockNumber();
         expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(amount);
+        expect(await shareToken.totalSupplyByPartition(partition)).to.equal(amount);
         expect(await shareToken.balanceOfAt(partition, addr3.address, checkBlock)).to.equal(amount);
     });
 
@@ -1132,13 +1133,14 @@ describe("Additional Test Cases Including Snapshot Balances Checking After Trans
         await shareToken.connect(owner).authorizeOperator(manager.address);
 
         // let manager transfer shares to addr2
-        await shareToken.connect(manager).operatorTransferByPartition(partition, manager.address, addr2.address, amount / 2);
+        await shareToken.connect(manager).operatorTransferByPartition(partition, manager.address, addr2.address, amount / 4);
 
         const checkBlock = await ethers.provider.getBlockNumber();
         expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(amount);
-        expect(await shareToken.balanceOfAt(partition, addr2.address, checkBlock)).to.equal(amount / 2);
-        expect(await shareToken.balanceOfAt(partition, manager.address, checkBlock)).to.equal(amount / 2);
-
+        expect(await shareToken.balanceOfAt(partition, addr2.address, checkBlock)).to.equal(amount / 4);
+        expect(await shareToken.balanceOfByPartition(partition, addr2.address)).to.equal(amount / 4);
+        expect(await shareToken.balanceOfByPartition(partition, manager.address)).to.equal(3 * amount / 4);
+        expect(await shareToken.balanceOfAt(partition, manager.address, checkBlock)).to.equal(3 * amount / 4);
     });
 
 });

@@ -81,17 +81,15 @@ contract ERC1410Standard is ERC1410Operator {
         _issueByPartition(_partition, _tokenHolder, _value);
         // take snapshot of the partition balance of the holder
         _takeSnapshot(
-            _getHolderSnapshots(_partition, _tokenHolder),
             _partition,
             _balanceOfByPartition(_partition, _tokenHolder),
-            true
+            _tokenHolder
         );
         // take snapshot of total supply
         _takeSnapshot(
-            _getTotalSupplySnapshots(_partition),
             _partition,
             _totalSupplyByPartition(_partition),
-            false
+            address(0)
         );
     }
 
@@ -103,17 +101,15 @@ contract ERC1410Standard is ERC1410Operator {
         _issueByPartition(_partition, _tokenHolder, _value);
         // take snapshot of the partition balance of the holder
         _takeSnapshot(
-            _getHolderSnapshots(_partition, _tokenHolder),
             _partition,
             _balanceOfByPartition(_partition, _tokenHolder),
-            true
+            _tokenHolder
         );
         // take snapshot of total supply
         _takeSnapshot(
-            _getTotalSupplySnapshots(_partition),
             _partition,
             _totalSupplyByPartition(_partition),
-            false
+            address(0)
         );
     }
 
@@ -128,17 +124,15 @@ contract ERC1410Standard is ERC1410Operator {
         _redeemByPartition(_partition, msg.sender, address(0), _value);
         // take snapshot of the partition balance of the holder
         _takeSnapshot(
-            _getHolderSnapshots(_partition, msg.sender),
             _partition,
             _balanceOfByPartition(_partition, msg.sender),
-            true
+            msg.sender
         );
         // take snapshot of total supply
         _takeSnapshot(
-            _getTotalSupplySnapshots(_partition),
             _partition,
             _totalSupplyByPartition(_partition),
-            false
+            address(0)
         );
     }
 
@@ -161,17 +155,15 @@ contract ERC1410Standard is ERC1410Operator {
         _redeemByPartition(_partition, _tokenHolder, msg.sender, _value);
         // take snapshot of the partition balance of the holder
         _takeSnapshot(
-            _getHolderSnapshots(_partition, _tokenHolder),
             _partition,
             _balanceOfByPartition(_partition, _tokenHolder),
-            true
+            _tokenHolder
         );
         // take snapshot of total supply
         _takeSnapshot(
-            _getTotalSupplySnapshots(_partition),
             _partition,
             _totalSupplyByPartition(_partition),
-            false
+            address(0)
         );
     }
 
@@ -199,16 +191,14 @@ contract ERC1410Standard is ERC1410Operator {
         balances[_from] = balances[_from].sub(_value);
         _totalSupply = _totalSupply.sub(_value);
         _takeSnapshot(
-            _getHolderSnapshots(_partition, _from),
             _partition,
             _balanceOfByPartition(_partition, _from),
-            true
+            _from
         );
         _takeSnapshot(
-            _getTotalSupplySnapshots(_partition),
             _partition,
             _totalSupplyByPartition(_partition),
-            false
+            address(0)
         );
         emit RedeemedByPartition(_partition, _operator, _from, _value);
     }
@@ -230,17 +220,15 @@ contract ERC1410Standard is ERC1410Operator {
 
         // take snapshot of the partition balance of the holder
         _takeSnapshot(
-            _getHolderSnapshots(_partition, _holder),
             _partition,
             _balanceOfByPartition(_partition, _holder),
-            true
+            _holder
         );
         // take snapshot of total supply
         _takeSnapshot(
-            _getTotalSupplySnapshots(_partition),
             _partition,
             _totalSupplyByPartition(_partition),
-            false
+            address(0)
         );
     }
 
@@ -264,24 +252,17 @@ contract ERC1410Standard is ERC1410Operator {
         _transferByPartition(_from, _to, _value, _partition);
         // take snapshot of the partition balance of _from
         _takeSnapshot(
-            _getHolderSnapshots(_partition, _from),
             _partition,
             _balanceOfByPartition(_partition, _from),
-            true
+            _from
         );
         // take snapshot of the partition balance of _to
-        _takeSnapshot(
-            _getHolderSnapshots(_partition, _to),
-            _partition,
-            _balanceOfByPartition(_partition, _to),
-            true
-        );
+        _takeSnapshot(_partition, _balanceOfByPartition(_partition, _to), _to);
         // take snapshot of total supply
         _takeSnapshot(
-            _getTotalSupplySnapshots(_partition),
             _partition,
             _totalSupplyByPartition(_partition),
-            false
+            address(0)
         );
         return _partition;
     }

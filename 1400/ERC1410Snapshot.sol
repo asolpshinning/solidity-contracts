@@ -58,16 +58,17 @@ abstract contract ERC1410Snapshot {
     /**
      * @dev `takeSnapshot` used to update the `_snapshotBalances` map and the `_snapshotTotalSupply`
      * @param partition The partition from which to update the total supply
-     * @param pastSnapshots The history of snapshots being updated
      * @param _value The new number of tokens
-     * @param forHolders `true` if function is called to take snapshot of balance of the token holders, `false` if for `totalSupply`
+     * @param _holder The address of the token holder or it is set to 0x0 if it is a totalSupply update
      */
     function _takeSnapshot(
-        Snapshot[] storage pastSnapshots,
         bytes32 partition,
         uint256 _value,
-        bool forHolders
+        address _holder
     ) internal {
+        Snapshot[] storage pastSnapshots = address(0) == _holder
+            ? _getTotalSupplySnapshots(partition)
+            : _getHolderSnapshots(partition, _holder);
         if (
             (pastSnapshots.length == 0) ||
             (pastSnapshots[pastSnapshots.length.sub(1)].blockNum < block.number)
@@ -76,8 +77,8 @@ abstract contract ERC1410Snapshot {
         } else {
             pastSnapshots[pastSnapshots.length.sub(1)].value = _value;
         }
-        if (forHolders) {
-            _snapshotBalances[partition][msg.sender] = pastSnapshots;
+        if (_holder != address(0)) {
+            _snapshotBalances[partition][_holder] = pastSnapshots;
         } else {
             _snapshotTotalSupply[partition] = pastSnapshots;
         }

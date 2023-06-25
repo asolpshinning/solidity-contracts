@@ -204,22 +204,15 @@ abstract contract ERC1410Basic is ERC1410Snapshot {
 
         // take snapshot of the state after transfer
         _takeSnapshot(
-            _getHolderSnapshots(_partition, _from),
             _partition,
             _balanceOfByPartition(_partition, _from),
-            true
+            _from
         );
+        _takeSnapshot(_partition, _balanceOfByPartition(_partition, _to), _to);
         _takeSnapshot(
-            _getHolderSnapshots(_partition, _to),
-            _partition,
-            _balanceOfByPartition(_partition, _to),
-            true
-        );
-        _takeSnapshot(
-            _getTotalSupplySnapshots(_partition),
             _partition,
             _totalSupplyByPartition(_partition),
-            false
+            address(0)
         );
 
         // Emit transfer event.
