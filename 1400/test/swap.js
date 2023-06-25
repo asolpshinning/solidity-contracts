@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-describe("Order Functions Testing", function () {
+describe("Orders and Swap Functions Testing", function () {
 
     async function setupOrderTesting() {
         const [owner, addr1, addr2, addr3] = await ethers.getSigners();
@@ -1097,6 +1097,54 @@ describe("Order Functions Testing", function () {
             .withArgs(owner.address, 0, amount * price);
     });
 
+});
+
+
+describe("Additional Test Cases Including Snapshot Balances Checking After Transfers", function () {
+
+    async function setupOrderTesting() {
+        const [owner, addr1, addr2, addr3] = await ethers.getSigners();
+
+        const ShareToken = await ethers.getContractFactory("ERC1410Standard");
+        const shareToken = await ShareToken.deploy();
+
+        const PaymentToken = await ethers.getContractFactory("ERC20");
+        const paymentToken = await PaymentToken.deploy("PaymentToken", "PTK");
+
+        const SwapContract = await ethers.getContractFactory("SwapContract");
+        const swapContract = await SwapContract.deploy(shareToken.address, paymentToken.address);
+
+        return { owner, addr1, addr2, addr3, shareToken, paymentToken, swapContract };
+    }
+
+    // Additional Test Cases
+    it("Should allow shares be issued to manager, allow manager transfers and snapshot balances should be correct", async function () {
+        const { owner, addr1, addr2, addr3, shareToken, paymentToken, swapContract } = await setupOrderTesting();
+
+        const partition = ethers.utils.formatBytes32String("partition1");
+        const amount = 100;
+        const price = 1;
+
+        await shareToken.connect(owner).addToWhitelist(addr1.address);
+        await shareToken.connect(owner).addToWhitelist(addr2.address);
+        await shareToken.connect(owner).addManager(addr3.address);
+        const manager = addr3;
+
+        // issue shares to manager
+        await shareToken.connect(owner).issueByPartition(partition, manager.address, amount);
+
+        // make manager an operator
+        await shareToken.connect(owner).authorizeOperator(manager.address);
+
+        // let manager transfer shares to addr2
+        await shareToken.connect(manager).operatorTransferByPartition(partition, manager.address, addr2.address, amount / 2);
+
+        const checkBlock = await ethers.provider.getBlockNumber();
+        expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(amount);
+        expect(await shareToken.balanceOfAt(partition, addr2.address, checkBlock)).to.equal(amount / 2);
+        expect(await shareToken.balanceOfAt(partition, manager.address, checkBlock)).to.equal(amount / 2);
+
+    });
 
 });
 

@@ -35,13 +35,6 @@ interface IERC1410 {
         uint256 _value
     ) external;
 
-    // Token Transfers
-    function transferByPartition(
-        bytes32 _partition,
-        address _to,
-        uint256 _value
-    ) external returns (bytes32);
-
     function operatorTransferByPartition(
         bytes32 _partition,
         address _from,
