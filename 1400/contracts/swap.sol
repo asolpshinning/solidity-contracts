@@ -50,7 +50,7 @@ contract SwapContract {
     IERC20 public paymentToken; /// The ERC20 token that the contract will interact with.
     uint256 public nextOrderId = 0; /// The id of the next order to be created.
     bool public swapApprovalsEnabled = true; /// Indicates if swap approvals are enabled.
-    bool public txnApprovalsEnabled = false; /// Indicates if transaction approvals are enabled.
+    bool public txnApprovalsEnabled = true; /// Indicates if transaction approvals are enabled.
     mapping(uint256 => Order) public orders; /// The mapping of order ids to orders.
     mapping(address => Proceeds) public unclaimedProceeds; /// The mapping of addresses to proceeds.
     mapping(address => bool) public cannotPurchase; /// The mapping of addresses to cannotPurchase status.

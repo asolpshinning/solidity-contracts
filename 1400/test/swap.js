@@ -14,6 +14,8 @@ describe("Orders and Swap Functions Testing", function () {
 
         const SwapContract = await ethers.getContractFactory("SwapContract");
         const swapContract = await SwapContract.deploy(shareToken.address, paymentToken.address);
+        // set txnAPprovalsEnabled to false so that we can approve orders
+        await swapContract.connect(owner).toggleTxnApprovals();
 
         return { owner, addr1, addr2, addr3, shareToken, paymentToken, swapContract };
     }
@@ -1109,6 +1111,8 @@ describe("Additional Test Cases Including Snapshot Balances Checking After Trans
 
         const SwapContract = await ethers.getContractFactory("SwapContract");
         const swapContract = await SwapContract.deploy(shareToken.address, paymentToken.address);
+        // set txnAPprovalsEnabled to false so that we can approve orders
+        await swapContract.connect(owner).toggleTxnApprovals();
 
         return { owner, addr1, addr2, addr3, shareToken, paymentToken, swapContract };
     }
