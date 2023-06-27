@@ -234,4 +234,86 @@ describe("DividendsDistribution", function () {
         expect(await payoutToken.balanceOf(addr3.address)).to.lessThanOrEqual(ethers.utils.parseEther("220"));
 
     });
+
+    it("Should allow 3 investors claim past dividends after being zeroed out", async function () {
+        const amount = 1200;
+        const dividendAmount = ethers.utils.parseEther("1200");
+        await sharesToken.connect(owner).addToWhitelist(addr1.address);
+        await sharesToken.connect(owner).addToWhitelist(addr2.address);
+        await sharesToken.connect(owner).addToWhitelist(addr3.address);
+        await sharesToken.connect(owner).issueByPartition(partition, addr1.address, amount / 2)
+        await sharesToken.connect(owner).issueByPartition(partition, addr2.address, amount / 4)
+        await sharesToken.connect(owner).issueByPartition(partition, addr3.address, amount / 6)
+
+        await payoutToken.connect(owner).mint(owner.address, dividendAmount);
+        await payoutToken.approve(dividendsDistribution.address, dividendAmount);
+        const checkBlock = (await ethers.provider.getBlock()).number;
+
+        // deposit dividends
+        await dividendsDistribution.connect(owner).depositDividend(checkBlock, 1, 1, payoutDate + 20, dividendAmount, payoutToken.address, partition);
+        // wait for payout date before claiming
+        await ethers.provider.send("evm_setNextBlockTimestamp", [payoutDate + 20]);
+        await ethers.provider.send("evm_mine");
+
+        // check that each investor has 0 payout token balance
+        let balance1 = await payoutToken.balanceOf(addr1.address);
+        let balance2 = await payoutToken.balanceOf(addr2.address);
+        let balance3 = await payoutToken.balanceOf(addr3.address);
+        expect(balance1).to.equal(0);
+        expect(balance2).to.equal(0);
+        expect(balance3).to.equal(0);
+
+        // make owner an operator
+        await sharesToken.connect(owner).authorizeOperator(owner.address);
+        // transfer all shares back to owner
+        await sharesToken.connect(owner).operatorTransferByPartition(partition, addr1.address, owner.address, amount / 2);
+        await sharesToken.connect(owner).operatorTransferByPartition(partition, addr2.address, owner.address, amount / 4);
+        await sharesToken.connect(owner).operatorTransferByPartition(partition, addr3.address, owner.address, amount / 6);
+
+        // get claimable amounts
+        let claimable1 = await dividendsDistribution.getClaimableAmount(addr1.address, 0);
+        let claimable2 = await dividendsDistribution.getClaimableAmount(addr2.address, 0);
+        let claimable3 = await dividendsDistribution.getClaimableAmount(addr3.address, 0);
+
+        expect(claimable1).to.greaterThanOrEqual(ethers.utils.parseEther("570"));
+        expect(claimable1).to.lessThanOrEqual(ethers.utils.parseEther("660"));
+        expect(claimable2).to.greaterThanOrEqual(ethers.utils.parseEther("285"));
+        expect(claimable2).to.lessThanOrEqual(ethers.utils.parseEther("330"));
+        expect(claimable3).to.greaterThanOrEqual(ethers.utils.parseEther("190"));
+        expect(claimable3).to.lessThanOrEqual(ethers.utils.parseEther("220"));
+
+        // claim dividends
+        await dividendsDistribution.connect(addr1).claimDividend(0);
+        expect(await dividendsDistribution.hasClaimedDividend(addr1.address, 0)).to.be.true;
+        await dividendsDistribution.connect(addr2).claimDividend(0);
+        expect(await dividendsDistribution.hasClaimedDividend(addr2.address, 0)).to.be.true;
+        await dividendsDistribution.connect(addr3).claimDividend(0);
+        expect(await dividendsDistribution.hasClaimedDividend(addr3.address, 0)).to.be.true;
+
+
+        // check that the correct amount was transferred to each investor
+        expect(await payoutToken.balanceOf(addr1.address)).to.greaterThanOrEqual(ethers.utils.parseEther("570"));
+        expect(await payoutToken.balanceOf(addr1.address)).to.lessThanOrEqual(ethers.utils.parseEther("660"));
+        expect(await payoutToken.balanceOf(addr2.address)).to.greaterThanOrEqual(ethers.utils.parseEther("285"));
+        expect(await payoutToken.balanceOf(addr2.address)).to.lessThanOrEqual(ethers.utils.parseEther("330"));
+        expect(await payoutToken.balanceOf(addr3.address)).to.greaterThanOrEqual(ethers.utils.parseEther("190"));
+        expect(await payoutToken.balanceOf(addr3.address)).to.lessThanOrEqual(ethers.utils.parseEther("220"));
+
+        // get claimable amount for each investor
+        claimable1 = await dividendsDistribution.getClaimableAmount(addr1.address, 0);
+        claimable2 = await dividendsDistribution.getClaimableAmount(addr2.address, 0);
+        claimable3 = await dividendsDistribution.getClaimableAmount(addr3.address, 0);
+        expect(claimable1).to.equal(0);
+        expect(claimable2).to.equal(0);
+        expect(claimable3).to.equal(0);
+
+        // check that the correct amount was transferred to each investor
+        expect(await payoutToken.balanceOf(addr1.address)).to.greaterThanOrEqual(ethers.utils.parseEther("570"));
+        expect(await payoutToken.balanceOf(addr1.address)).to.lessThanOrEqual(ethers.utils.parseEther("660"));
+        expect(await payoutToken.balanceOf(addr2.address)).to.greaterThanOrEqual(ethers.utils.parseEther("285"));
+        expect(await payoutToken.balanceOf(addr2.address)).to.lessThanOrEqual(ethers.utils.parseEther("330"));
+        expect(await payoutToken.balanceOf(addr3.address)).to.greaterThanOrEqual(ethers.utils.parseEther("190"));
+        expect(await payoutToken.balanceOf(addr3.address)).to.lessThanOrEqual(ethers.utils.parseEther("220"));
+
+    });
 });

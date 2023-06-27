@@ -24,7 +24,7 @@ contract DividendsDistribution {
         mapping(address => bool) claimed;
     }
 
-    string public contractVersion = "0.1.2";
+    string public contractVersion = "0.1.3";
     IERC1410 public sharesToken;
     uint256 public reclaim_time;
     mapping(address => uint256) public balances;
@@ -226,8 +226,7 @@ contract DividendsDistribution {
         if (
             dividend.claimed[_address] ||
             dividend.recycled ||
-            dividend.amountRemaining == 0 ||
-            sharesToken.balanceOf(_address) == 0
+            dividend.amountRemaining == 0
         ) {
             return 0;
         }
