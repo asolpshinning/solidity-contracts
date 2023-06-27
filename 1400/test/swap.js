@@ -645,6 +645,44 @@ describe("Orders and Swap Functions Testing", function () {
         await expect(swapContract.connect(addr2).fillOrder(0, amount)).to.be.revertedWith("Only initiator can fill bid orders. Only filler(who accepted order) can fill ask orders");
     });
 
+    it("Should allow an initiator to fill a bid order", async function () {
+        const { owner, addr1, addr2, shareToken, paymentToken, swapContract } = await setupOrderTesting();
+
+        const partition = ethers.utils.formatBytes32String("partition1");
+        const amount = 100;
+        const price = 1;
+
+        // toggle txn approvals on
+        await swapContract.connect(owner).toggleTxnApprovals();
+
+        // check if txn approvals are on
+        expect(await swapContract.txnApprovalsEnabled()).to.equal(true);
+
+        await paymentToken.connect(owner).mint(addr1.address, amount * price);
+        await paymentToken.connect(addr1).increaseAllowance(swapContract.address, amount * price);
+        // add addr1 and addr2 to whitelist
+        await shareToken.connect(owner).addToWhitelist(addr1.address);
+        await shareToken.connect(owner).addToWhitelist(addr2.address);
+        // mint tokens to addr2
+        await shareToken.connect(owner).issueByPartition(partition, addr2.address, amount);
+        // addr1 initiates a bid order
+        await swapContract.connect(addr1).initiateOrder(partition, amount, price, false, false, true);
+
+
+        // addr2 accepts the order
+        await swapContract.connect(addr2).acceptOrder(0, amount);
+
+        // Owner Approve the order
+        await swapContract.connect(owner).approveOrder(0);
+
+
+        // Make swap contract an operator for the share token
+        await shareToken.connect(owner).authorizeOperator(swapContract.address);
+
+        // Try to fill the order with initiator
+        await expect(swapContract.connect(addr1).fillOrder(0, amount)).to.not.be.reverted;
+    });
+
     it("Should allow a manager to approve an ask order and let another address fill", async function () {
         const { owner, addr1, addr2, addr3, shareToken, paymentToken, swapContract } = await setupOrderTesting();
         const partition = ethers.utils.formatBytes32String("partition1");
