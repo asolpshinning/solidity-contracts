@@ -25,7 +25,6 @@ contract SwapContract {
     /// @dev Holds all the status details related to a specific order.
     struct status {
         bool isApproved; /// Indicates if the order has been approved by manager.
-        bool isDisapproved; /// Indicates if the order has been disapproved manager.
         bool isCancelled; /// Indicates if the order has been cancelled.
         bool orderAccepted; /// Indicates if the initiated order has been accepted.
     }
@@ -45,7 +44,7 @@ contract SwapContract {
         uint256 tokenProceeds; /// The amount of tokens to be claimed by the user.
     }
 
-    string public contractVersion = "0.1.2"; /// The version of the contract.
+    string public contractVersion = "0.1.3"; /// The version of the contract.
     IERC1410 public shareToken; /// The ERC1410 token that the contract will interact with.
     IERC20 public paymentToken; /// The ERC20 token that the contract will interact with.
     uint256 public nextOrderId = 0; /// The id of the next order to be created.
@@ -66,6 +65,11 @@ contract SwapContract {
         uint256 ethAmount,
         uint256 tokenAmount
     );
+
+    /// @notice Event emitted when an order is reset by owner or manager
+    /// @param orderId The id of the order
+    /// @param timestamp The timestamp of the reset
+    event OrderReset(uint256 indexed orderId, uint256 timestamp);
 
     /// @notice Modifier to check if the sender is the owner or manager of the shares token contract
     modifier onlyOwnerOrManager() {
@@ -158,7 +162,7 @@ contract SwapContract {
             0,
             filler,
             orderType(isShareIssuance, isAskOrder, isErc20Payment),
-            status(false, false, false, false)
+            status(false, false, false)
         );
         orders[nextOrderId] = newOrder;
         return nextOrderId++;
@@ -174,10 +178,7 @@ contract SwapContract {
             swapApprovalsEnabled || txnApprovalsEnabled,
             "Approvals toggled off, no approval required"
         );
-        require(
-            !orders[orderId].status.isDisapproved,
-            "Order already disapproved"
-        );
+
         require(!orders[orderId].status.isApproved, "Order already approved");
         require(!orders[orderId].status.isCancelled, "Order already cancelled");
         require(
@@ -203,27 +204,24 @@ contract SwapContract {
     }
 
     /// @notice Disapproves a given order
-    /// @dev Only an owner or manager can call this function. Checks that the order has not already been disapproved or cancelled.
+    /// @dev Only an owner or manager can call this function. Checks that the order has not already been reset or cancelled.
     ///      Also checks whether approvals are enabled, and checks that the order has not been fully filled yet.
-    ///      Finally, it marks the order as disapproved.
-    /// @param orderId The id of the order to disapprove
-    function disapproveOrder(uint256 orderId) public onlyOwnerOrManager {
-        require(
-            !orders[orderId].status.isDisapproved,
-            "Order already disapproved"
-        );
+    ///      Finally, it marks the order as reset.
+    /// @param orderId The id of the order to reset
+    function managerResetOrder(uint256 orderId) public onlyOwnerOrManager {
         require(!orders[orderId].status.isCancelled, "Order already cancelled");
-        require(
-            swapApprovalsEnabled || txnApprovalsEnabled,
-            "Approvals toggled off"
-        );
+
         require(
             orders[orderId].filledAmount < orders[orderId].amount,
             "Order already fully filled"
         );
-        orders[orderId].status.isDisapproved = true;
         orders[orderId].status.isApproved = false;
         orders[orderId].status.orderAccepted = false;
+        acceptedOrderQty[orders[orderId].filler][orderId] = 0;
+        orders[orderId].filler = address(0);
+
+        // emit an event that the order has been reset
+        emit OrderReset(orderId, block.timestamp);
     }
 
     /// @notice Accepts a given order
@@ -300,10 +298,6 @@ contract SwapContract {
         uint256 amount
     ) public view returns (bool) {
         require(!orders[orderId].status.isCancelled, "Order already cancelled");
-        require(
-            !orders[orderId].status.isDisapproved,
-            "Order already disapproved"
-        );
         if (
             (!orders[orderId].orderType.isAskOrder && !txnApprovalsEnabled) ||
             txnApprovalsEnabled
@@ -466,10 +460,6 @@ contract SwapContract {
         require(
             msg.sender == orders[orderId].initiator,
             "Only initiator can cancel"
-        );
-        require(
-            !orders[orderId].status.isDisapproved,
-            "Order already disapproved"
         );
         require(!orders[orderId].status.isCancelled, "Order already cancelled");
         require(

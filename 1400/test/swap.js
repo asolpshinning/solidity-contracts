@@ -279,7 +279,7 @@ describe("Orders and Swap Functions Testing", function () {
         await expect(swapContract.connect(owner).approveOrder(0)).to.be.revertedWith("Order already approved");
     });
 
-    it("Should not allow approving a cancelled or disapproved order", async function () {
+    it("Should not allow approving a cancelled order", async function () {
         const { owner, addr1, addr2, shareToken, paymentToken, swapContract } = await setupOrderTesting();
         const partition = ethers.utils.formatBytes32String("partition1");
         const amount = 100;
@@ -292,10 +292,9 @@ describe("Orders and Swap Functions Testing", function () {
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false);
         await swapContract.connect(addr2).initiateOrder(partition, amount, price, false, false, false);
         await swapContract.connect(addr1).cancelOrder(0);
-        await swapContract.connect(owner).disapproveOrder(1);
+        await swapContract.connect(owner).managerResetOrder(1);
 
         await expect(swapContract.connect(owner).approveOrder(0)).to.be.revertedWith("Order already cancelled");
-        await expect(swapContract.connect(owner).approveOrder(1)).to.be.revertedWith("Order already disapproved");
     });
 
     it("Should not allow order approval when approvals are toggled off", async function () {
@@ -330,8 +329,8 @@ describe("Orders and Swap Functions Testing", function () {
         await expect(swapContract.connect(owner).approveOrder(0)).to.be.revertedWith("Initiated orders must be accepted before approval (if txn approvals are enabled)");
     });
 
-    // Test Cases for Disapproving an Order
-    it("Should allow the owner or manager to disapprove an order", async function () {
+    // Test Cases for Reseting an Order
+    it("Should allow the owner or manager to reset an order", async function () {
         const { owner, addr1, addr2, shareToken, paymentToken, swapContract } = await setupOrderTesting();
 
         const partition = ethers.utils.formatBytes32String("partition1");
@@ -342,58 +341,17 @@ describe("Orders and Swap Functions Testing", function () {
         await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount);
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false);
 
-        await swapContract.connect(owner).disapproveOrder(0);
+        await swapContract.connect(owner).managerResetOrder(0);
 
         const order = await swapContract.orders(0);
-        expect(order.status.isDisapproved).to.equal(true);
+        expect(order.status.isApproved).to.equal(false);
+        expect(order.status.orderAccepted).to.equal(false);
+        expect(order.status.isCancelled).to.equal(false);
+        expect(order.filler).to.equal(ethers.constants.AddressZero);
+
     });
 
-    it("Should not allow disapproving an already disapproved order", async function () {
-        const { owner, addr1, addr2, shareToken, paymentToken, swapContract } = await setupOrderTesting();
-
-        const partition = ethers.utils.formatBytes32String("partition1");
-        const amount = 100;
-        const price = 1;
-
-        await shareToken.connect(owner).addToWhitelist(addr1.address);
-        await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount);
-        await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false);
-        await swapContract.connect(owner).disapproveOrder(0);
-
-        await expect(swapContract.connect(owner).disapproveOrder(0)).to.be.revertedWith("Order already disapproved");
-    });
-
-    it("Should not allow disapproving a cancelled order", async function () {
-        const { owner, addr1, addr2, shareToken, paymentToken, swapContract } = await setupOrderTesting();
-
-        const partition = ethers.utils.formatBytes32String("partition1");
-        const amount = 100;
-        const price = 1;
-
-        await shareToken.connect(owner).addToWhitelist(addr1.address);
-        await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount);
-        await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false);
-        await swapContract.connect(addr1).cancelOrder(0);
-
-        await expect(swapContract.connect(owner).disapproveOrder(0)).to.be.revertedWith("Order already cancelled");
-    });
-
-    it("Should not allow order disapproval when approvals are toggled off", async function () {
-        const { owner, addr1, addr2, shareToken, paymentToken, swapContract } = await setupOrderTesting();
-
-        const partition = ethers.utils.formatBytes32String("partition1");
-        const amount = 100;
-        const price = 1;
-
-        await shareToken.connect(owner).addToWhitelist(addr1.address);
-        await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount);
-        await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false);
-        await swapContract.connect(owner).toggleSwapApprovals();
-
-        await expect(swapContract.connect(owner).disapproveOrder(0)).to.be.revertedWith("Approvals toggled off");
-    });
-
-    it("Should not allow disapproving an order that is fully filled", async function () {
+    it("Should not allow resetting an order that is fully filled", async function () {
         const { owner, addr1, addr2, shareToken, paymentToken, swapContract } = await setupOrderTesting();
 
         const partition = ethers.utils.formatBytes32String("partition1");
@@ -416,8 +374,8 @@ describe("Orders and Swap Functions Testing", function () {
         await swapContract.connect(addr2).fillOrder(0, amount);
         await swapContract.connect(addr2).fillOrder(1, amount / 2);
 
-        await expect(swapContract.connect(owner).disapproveOrder(0)).to.be.revertedWith("Order already fully filled");
-        await expect(swapContract.connect(owner).disapproveOrder(1)).to.not.be.reverted;
+        await expect(swapContract.connect(owner).managerResetOrder(0)).to.be.revertedWith("Order already fully filled");
+        await expect(swapContract.connect(owner).managerResetOrder(1)).to.not.be.reverted;
     });
 
     // Test Cases for Accepting an Order
@@ -594,7 +552,7 @@ describe("Orders and Swap Functions Testing", function () {
         await expect(swapContract.connect(addr1).fillOrder(0, amount)).to.be.revertedWith("Order not accepted");
     });
 
-    it("Should not allow filling an order that is already cancelled or disapproved", async function () {
+    it("Should not allow filling an order that is already cancelled", async function () {
         const { owner, addr1, addr2, shareToken, paymentToken, swapContract } = await setupOrderTesting();
 
         const partition = ethers.utils.formatBytes32String("partition1");
@@ -610,12 +568,10 @@ describe("Orders and Swap Functions Testing", function () {
         const order0 = await swapContract.orders(0);
         expect(order0.status.isCancelled).to.equal(true);
         // Disapprove the second order
-        await swapContract.connect(owner).disapproveOrder(1);
+        await swapContract.connect(owner).managerResetOrder(1);
         const order1 = await swapContract.orders(1);
-        expect(order1.status.isDisapproved).to.equal(true);
 
         await expect(swapContract.connect(addr1).fillOrder(0, amount)).to.be.revertedWith("Order already cancelled");
-        await expect(swapContract.connect(addr1).fillOrder(1, amount)).to.be.revertedWith("Order already disapproved");
     });
 
     it("Should not allow non-initiator to fill a bid order", async function () {
@@ -884,21 +840,6 @@ describe("Orders and Swap Functions Testing", function () {
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false);
 
         await expect(swapContract.connect(addr2).cancelOrder(0)).to.be.revertedWith("Only initiator can cancel");
-    });
-
-    it("Should not allow cancelling an order that is already disapproved", async function () {
-        const { owner, addr1, shareToken, swapContract } = await setupOrderTesting();
-
-        const partition = ethers.utils.formatBytes32String("partition1");
-        const amount = 100;
-        const price = 1;
-
-        await shareToken.connect(owner).addToWhitelist(addr1.address);
-        await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount);
-        await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false);
-
-        await swapContract.connect(owner).disapproveOrder(0);
-        await expect(swapContract.connect(addr1).cancelOrder(0)).to.be.revertedWith("Order already disapproved");
     });
 
     it("Should not allow cancelling an order that is already cancelled", async function () {
