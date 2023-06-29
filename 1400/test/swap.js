@@ -654,7 +654,7 @@ describe("Orders and Swap Functions Testing", function () {
         expect(await swapContract.txnApprovalsEnabled()).to.equal(true);
 
         await paymentToken.connect(owner).mint(addr1.address, amount * price);
-        await paymentToken.connect(addr1).increaseAllowance(swapContract.address, amount * price);
+        await paymentToken.connect(addr1).increaseAllowance(swapContract.address, amountAccepted * price);
         // add addr1 and addr2 to whitelist
         await shareToken.connect(owner).addToWhitelist(addr1.address);
         await shareToken.connect(owner).addToWhitelist(addr2.address);

@@ -44,7 +44,7 @@ contract SwapContract {
         uint256 tokenProceeds; /// The amount of tokens to be claimed by the user.
     }
 
-    string public contractVersion = "0.1.3"; /// The version of the contract.
+    string public contractVersion = "0.1.4"; /// The version of the contract.
     IERC1410 public shareToken; /// The ERC1410 token that the contract will interact with.
     IERC20 public paymentToken; /// The ERC20 token that the contract will interact with.
     uint256 public nextOrderId = 0; /// The id of the next order to be created.
@@ -171,7 +171,7 @@ contract SwapContract {
     /// @notice Approves a given order
     /// @dev Only an owner or manager can call this function. Checks that the order has not already been disapproved, approved or cancelled.
     ///      Also checks whether approvals are enabled. If transaction approvals are enabled, it checks that the initiated order has been accepted.
-    ///      Finally, if the order is a share issuance, it sets the initiated order as accepted and the filler to the owner of the share token contract.
+    ///      Finally, if the order is a share issuance and bid order, it sets the initiated order as accepted and the filler to the owner of the share token contract.
     /// @param orderId The id of the order to approve
     function approveOrder(uint256 orderId) public onlyOwnerOrManager {
         require(
@@ -199,14 +199,16 @@ contract SwapContract {
             orders[orderId].status.orderAccepted = true;
             if (!orders[orderId].orderType.isAskOrder) {
                 orders[orderId].filler = shareToken.owner();
+                acceptedOrderQty[orders[orderId].filler][orderId] = orders[
+                    orderId
+                ].amount;
             }
         }
     }
 
     /// @notice Disapproves a given order
-    /// @dev Only an owner or manager can call this function. Checks that the order has not already been reset or cancelled.
-    ///      Also checks whether approvals are enabled, and checks that the order has not been fully filled yet.
-    ///      Finally, it marks the order as reset.
+    /// @dev Only an owner or manager can call this function. Checks that the order has not already been cancelled.
+    ///      Also checks that the order has not been fully filled yet.
     /// @param orderId The id of the order to reset
     function managerResetOrder(uint256 orderId) public onlyOwnerOrManager {
         require(!orders[orderId].status.isCancelled, "Order already cancelled");
@@ -407,7 +409,7 @@ contract SwapContract {
     ///      it issues new shares to the initiator, otherwise it transfers shares from the filler (address who accepted order) to the initiator.
     /// @param orderId The id of the order to fill
     function _fillBid(uint256 orderId) internal {
-        uint256 amount = acceptedOrderQty[msg.sender][orderId];
+        uint256 amount = acceptedOrderQty[orders[orderId].filler][orderId];
         require(canFillOrder(orderId, amount), "Order cannot be filled");
         Proceeds memory proceeds = unclaimedProceeds[orders[orderId].filler];
 
@@ -416,35 +418,31 @@ contract SwapContract {
                 paymentToken.transferFrom(
                     msg.sender,
                     address(this),
-                    orders[orderId].price * orders[orderId].amount
+                    orders[orderId].price * amount
                 ),
                 "Transfer of PaymentToken from buyer failed"
             );
-            proceeds.tokenProceeds +=
-                orders[orderId].price *
-                orders[orderId].amount;
+            proceeds.tokenProceeds += orders[orderId].price * amount;
         } else {
             require(
                 msg.value >= orders[orderId].price * orders[orderId].amount,
                 "Incorrect Ether amount sent to fill bid order"
             );
-            proceeds.ethProceeds +=
-                orders[orderId].price *
-                orders[orderId].amount;
+            proceeds.ethProceeds += orders[orderId].price * amount;
         }
 
         if (orders[orderId].orderType.isShareIssuance) {
             shareToken.operatorIssueByPartition(
                 orders[orderId].partition,
                 orders[orderId].initiator,
-                orders[orderId].amount
+                amount
             );
         } else {
             shareToken.operatorTransferByPartition(
                 orders[orderId].partition,
                 orders[orderId].filler,
                 orders[orderId].initiator,
-                orders[orderId].amount
+                amount
             );
         }
         orders[orderId].filledAmount += orders[orderId].amount;
