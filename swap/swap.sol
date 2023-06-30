@@ -44,7 +44,7 @@ contract SwapContract {
         uint256 tokenProceeds; /// The amount of tokens to be claimed by the user.
     }
 
-    string public contractVersion = "0.1.5"; /// The version of the contract.
+    string public contractVersion = "0.1.6"; /// The version of the contract.
     IERC1410 public shareToken; /// The ERC1410 token that the contract will interact with.
     IERC20 public paymentToken; /// The ERC20 token that the contract will interact with.
     uint256 public nextOrderId = 0; /// The id of the next order to be created.
@@ -273,7 +273,7 @@ contract SwapContract {
     ///      Checks that the order has been accepted and that the message sender is the filler of the order.
     ///      Finally, it marks the order as not accepted and sets the filler to address(0).
     /// @param orderId The id of the order to cancel acceptance of
-    /* function cancelAcceptance(uint256 orderId) public onlyWhitelisted {
+    function cancelAcceptance(uint256 orderId) public onlyWhitelisted {
         require(orders[orderId].status.orderAccepted, "Order not accepted");
         require(
             orders[orderId].filler == msg.sender,
@@ -282,7 +282,7 @@ contract SwapContract {
         orders[orderId].status.orderAccepted = false;
         orders[orderId].filler = address(0);
         acceptedOrderQty[msg.sender][orderId] = 0;
-    } */
+    }
 
     /// @notice Checks whether a given order can be filled with a specific amount
     /// @dev Checks if the order has not been cancelled, that it has been approved and that it won't be overfilled by filling it with the specified amount.
