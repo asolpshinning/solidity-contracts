@@ -44,7 +44,7 @@ contract SwapContract {
         uint256 tokenProceeds; /// The amount of tokens to be claimed by the user.
     }
 
-    string public contractVersion = "0.1.4"; /// The version of the contract.
+    string public contractVersion = "0.1.5"; /// The version of the contract.
     IERC1410 public shareToken; /// The ERC1410 token that the contract will interact with.
     IERC20 public paymentToken; /// The ERC20 token that the contract will interact with.
     uint256 public nextOrderId = 0; /// The id of the next order to be created.
@@ -445,7 +445,7 @@ contract SwapContract {
                 amount
             );
         }
-        orders[orderId].filledAmount += orders[orderId].amount;
+        orders[orderId].filledAmount += amount;
         orders[orderId].status.orderAccepted = false;
         unclaimedProceeds[orders[orderId].filler] = proceeds;
     }
