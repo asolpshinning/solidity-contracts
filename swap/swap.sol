@@ -5,9 +5,9 @@ pragma solidity ^0.8.18;
 import "../1400/IERC1410.sol";
 import "../1400/erc20/IERC20.sol";
 
-/// @title SwapContract
+/// @title CompliantSwap
 /// @dev This contract allows for swapping (using ask and bid orders) of ERC1410 shares where a specified ERC20 token or ETH is the payment token.
-contract SwapContract {
+contract CompliantSwap {
     /// @notice Represents an Order in the swap contract.
     /// @dev Holds all the details related to a specific order.
     struct Order {
@@ -50,7 +50,7 @@ contract SwapContract {
     uint256 public nextOrderId = 0; /// The id of the next order to be created.
     bool public swapApprovalsEnabled = true; /// Indicates if swap approvals are enabled.
     bool public txnApprovalsEnabled = true; /// Indicates if transaction approvals are enabled.
-    mapping(uint256 => Order) public orders; /// The mapping of order ids to orders.
+    mapping(uint256 => Order) public orderDetails; /// The mapping of order ids to orders.
     mapping(address => Proceeds) public unclaimedProceeds; /// The mapping of addresses to proceeds.
     mapping(address => bool) public cannotPurchase; /// The mapping of addresses to cannotPurchase status.
     // mapping of addresses to orderId and then mapped to uint256 to indicate order quantity accepted
@@ -164,7 +164,7 @@ contract SwapContract {
             orderType(isShareIssuance, isAskOrder, isErc20Payment),
             status(false, false, false)
         );
-        orders[nextOrderId] = newOrder;
+        orderDetails[nextOrderId] = newOrder;
         return nextOrderId++;
     }
 
@@ -179,29 +179,35 @@ contract SwapContract {
             "Approvals toggled off, no approval required"
         );
 
-        require(!orders[orderId].status.isApproved, "Order already approved");
-        require(!orders[orderId].status.isCancelled, "Order already cancelled");
+        require(
+            !orderDetails[orderId].status.isApproved,
+            "Order already approved"
+        );
+        require(
+            !orderDetails[orderId].status.isCancelled,
+            "Order already cancelled"
+        );
         require(
             (txnApprovalsEnabled &&
-                orders[orderId].status.orderAccepted &&
-                orders[orderId].orderType.isShareIssuance &&
-                orders[orderId].orderType.isAskOrder) ||
+                orderDetails[orderId].status.orderAccepted &&
+                orderDetails[orderId].orderType.isShareIssuance &&
+                orderDetails[orderId].orderType.isAskOrder) ||
                 (txnApprovalsEnabled &&
-                    orders[orderId].status.orderAccepted &&
-                    !orders[orderId].orderType.isShareIssuance) ||
-                (orders[orderId].orderType.isShareIssuance &&
-                    !orders[orderId].orderType.isAskOrder) ||
+                    orderDetails[orderId].status.orderAccepted &&
+                    !orderDetails[orderId].orderType.isShareIssuance) ||
+                (orderDetails[orderId].orderType.isShareIssuance &&
+                    !orderDetails[orderId].orderType.isAskOrder) ||
                 !txnApprovalsEnabled,
             "Initiated orders must be accepted before approval (if txn approvals are enabled)"
         );
-        orders[orderId].status.isApproved = true;
-        if (orders[orderId].orderType.isShareIssuance) {
-            orders[orderId].status.orderAccepted = true;
-            if (!orders[orderId].orderType.isAskOrder) {
-                orders[orderId].filler = shareToken.owner();
-                acceptedOrderQty[orders[orderId].filler][orderId] = orders[
+        orderDetails[orderId].status.isApproved = true;
+        if (orderDetails[orderId].orderType.isShareIssuance) {
+            orderDetails[orderId].status.orderAccepted = true;
+            if (!orderDetails[orderId].orderType.isAskOrder) {
+                orderDetails[orderId].filler = shareToken.owner();
+                acceptedOrderQty[orderDetails[orderId].filler][
                     orderId
-                ].amount;
+                ] = orderDetails[orderId].amount;
             }
         }
     }
@@ -211,16 +217,19 @@ contract SwapContract {
     ///      Also checks that the order has not been fully filled yet.
     /// @param orderId The id of the order to reset
     function managerResetOrder(uint256 orderId) public onlyOwnerOrManager {
-        require(!orders[orderId].status.isCancelled, "Order already cancelled");
+        require(
+            !orderDetails[orderId].status.isCancelled,
+            "Order already cancelled"
+        );
 
         require(
-            orders[orderId].filledAmount < orders[orderId].amount,
+            orderDetails[orderId].filledAmount < orderDetails[orderId].amount,
             "Order already fully filled"
         );
-        orders[orderId].status.isApproved = false;
-        orders[orderId].status.orderAccepted = false;
-        acceptedOrderQty[orders[orderId].filler][orderId] = 0;
-        orders[orderId].filler = address(0);
+        orderDetails[orderId].status.isApproved = false;
+        orderDetails[orderId].status.orderAccepted = false;
+        acceptedOrderQty[orderDetails[orderId].filler][orderId] = 0;
+        orderDetails[orderId].filler = address(0);
 
         // emit an event that the order has been reset
         emit OrderReset(orderId, block.timestamp);
@@ -239,32 +248,37 @@ contract SwapContract {
         uint256 amount
     ) public onlyWhitelisted {
         require(
-            (orders[orderId].orderType.isShareIssuance &&
-                orders[orderId].orderType.isAskOrder) ||
-                !orders[orderId].orderType.isShareIssuance,
+            (orderDetails[orderId].orderType.isShareIssuance &&
+                orderDetails[orderId].orderType.isAskOrder) ||
+                !orderDetails[orderId].orderType.isShareIssuance,
             "Cannot accept a share issuance bid order"
         );
         require(
-            (orders[orderId].orderType.isAskOrder &&
+            (orderDetails[orderId].orderType.isAskOrder &&
                 cannotPurchase[msg.sender] == false) ||
-                !orders[orderId].orderType.isAskOrder,
+                !orderDetails[orderId].orderType.isAskOrder,
             "You cannot purchase shares at this time"
         );
-        require(!orders[orderId].status.isCancelled, "Order already cancelled");
         require(
-            !orders[orderId].status.orderAccepted,
+            !orderDetails[orderId].status.isCancelled,
+            "Order already cancelled"
+        );
+        require(
+            !orderDetails[orderId].status.orderAccepted,
             "Order already accepted"
         );
         require(
-            orders[orderId].filledAmount < orders[orderId].amount,
+            orderDetails[orderId].filledAmount < orderDetails[orderId].amount,
             "Order already fully filled"
         );
         require(
-            amount <= orders[orderId].amount - orders[orderId].filledAmount,
+            amount <=
+                orderDetails[orderId].amount -
+                    orderDetails[orderId].filledAmount,
             "Cannot accept to overfill order"
         );
-        orders[orderId].status.orderAccepted = true;
-        orders[orderId].filler = msg.sender;
+        orderDetails[orderId].status.orderAccepted = true;
+        orderDetails[orderId].filler = msg.sender;
         acceptedOrderQty[msg.sender][orderId] = amount;
     }
 
@@ -274,13 +288,16 @@ contract SwapContract {
     ///      Finally, it marks the order as not accepted and sets the filler to address(0).
     /// @param orderId The id of the order to cancel acceptance of
     function cancelAcceptance(uint256 orderId) public onlyWhitelisted {
-        require(orders[orderId].status.orderAccepted, "Order not accepted");
         require(
-            orders[orderId].filler == msg.sender,
+            orderDetails[orderId].status.orderAccepted,
+            "Order not accepted"
+        );
+        require(
+            orderDetails[orderId].filler == msg.sender,
             "Only filler can cancel acceptance"
         );
-        orders[orderId].status.orderAccepted = false;
-        orders[orderId].filler = address(0);
+        orderDetails[orderId].status.orderAccepted = false;
+        orderDetails[orderId].filler = address(0);
         acceptedOrderQty[msg.sender][orderId] = 0;
     }
 
@@ -299,31 +316,39 @@ contract SwapContract {
         uint256 orderId,
         uint256 amount
     ) public view returns (bool) {
-        require(!orders[orderId].status.isCancelled, "Order already cancelled");
+        require(
+            !orderDetails[orderId].status.isCancelled,
+            "Order already cancelled"
+        );
         if (
-            (!orders[orderId].orderType.isAskOrder && !txnApprovalsEnabled) ||
-            txnApprovalsEnabled
+            (!orderDetails[orderId].orderType.isAskOrder &&
+                !txnApprovalsEnabled) || txnApprovalsEnabled
         ) {
-            require(orders[orderId].status.orderAccepted, "Order not accepted");
+            require(
+                orderDetails[orderId].status.orderAccepted,
+                "Order not accepted"
+            );
         }
         require(
-            ((orders[orderId].status.isApproved &&
+            ((orderDetails[orderId].status.isApproved &&
                 (swapApprovalsEnabled || txnApprovalsEnabled)) ||
                 (!swapApprovalsEnabled && !txnApprovalsEnabled)),
             "Order must be approved by manager (approvals are toggled on)"
         );
         require(
-            (!orders[orderId].orderType.isAskOrder &&
-                msg.sender == orders[orderId].initiator) ||
-                (orders[orderId].orderType.isAskOrder &&
-                    msg.sender == orders[orderId].filler &&
+            (!orderDetails[orderId].orderType.isAskOrder &&
+                msg.sender == orderDetails[orderId].initiator) ||
+                (orderDetails[orderId].orderType.isAskOrder &&
+                    msg.sender == orderDetails[orderId].filler &&
                     txnApprovalsEnabled) ||
-                (orders[orderId].orderType.isAskOrder && !txnApprovalsEnabled),
+                (orderDetails[orderId].orderType.isAskOrder &&
+                    !txnApprovalsEnabled),
             "Only initiator can fill bid orders. Only filler(who accepted order) can fill ask orders"
         );
 
         require(
-            orders[orderId].filledAmount + amount <= orders[orderId].amount,
+            orderDetails[orderId].filledAmount + amount <=
+                orderDetails[orderId].amount,
             "Order already fully filled"
         );
         return true;
@@ -337,13 +362,13 @@ contract SwapContract {
         uint256 orderId,
         uint256 amt
     ) public payable onlyWhitelisted {
-        if (orders[orderId].orderType.isAskOrder) {
+        if (orderDetails[orderId].orderType.isAskOrder) {
             _fillAsk(orderId, amt);
         } else {
             _fillBid(orderId);
         }
         if (txnApprovalsEnabled) {
-            orders[orderId].status.isApproved = false;
+            orderDetails[orderId].status.isApproved = false;
         }
     }
 
@@ -357,50 +382,54 @@ contract SwapContract {
     function _fillAsk(uint256 orderId, uint256 amt) internal {
         uint256 amount = acceptedOrderQty[msg.sender][orderId];
 
-        Proceeds memory proceeds = unclaimedProceeds[orders[orderId].initiator];
+        Proceeds memory proceeds = unclaimedProceeds[
+            orderDetails[orderId].initiator
+        ];
 
-        if (orders[orderId].orderType.isAskOrder && !txnApprovalsEnabled) {
+        if (
+            orderDetails[orderId].orderType.isAskOrder && !txnApprovalsEnabled
+        ) {
             amount = amt;
-            orders[orderId].filler = msg.sender;
+            orderDetails[orderId].filler = msg.sender;
         }
 
         require(canFillOrder(orderId, amount), "Order cannot be filled");
 
-        if (orders[orderId].orderType.isErc20Payment) {
+        if (orderDetails[orderId].orderType.isErc20Payment) {
             require(
                 paymentToken.transferFrom(
                     msg.sender,
                     address(this),
-                    orders[orderId].price * amount
+                    orderDetails[orderId].price * amount
                 ),
                 "Transfer of PaymentToken from buyer failed"
             );
-            proceeds.tokenProceeds += orders[orderId].price * amount;
+            proceeds.tokenProceeds += orderDetails[orderId].price * amount;
         } else {
             require(
-                msg.value == orders[orderId].price * amount,
+                msg.value == orderDetails[orderId].price * amount,
                 "Incorrect Ether amount sent to fill ask order"
             );
-            proceeds.ethProceeds += orders[orderId].price * amount;
+            proceeds.ethProceeds += orderDetails[orderId].price * amount;
         }
 
-        if (orders[orderId].orderType.isShareIssuance) {
+        if (orderDetails[orderId].orderType.isShareIssuance) {
             shareToken.operatorIssueByPartition(
-                orders[orderId].partition,
-                orders[orderId].filler,
+                orderDetails[orderId].partition,
+                orderDetails[orderId].filler,
                 amount
             );
         } else {
             shareToken.operatorTransferByPartition(
-                orders[orderId].partition,
-                orders[orderId].initiator,
-                orders[orderId].filler,
+                orderDetails[orderId].partition,
+                orderDetails[orderId].initiator,
+                orderDetails[orderId].filler,
                 amount
             );
         }
-        orders[orderId].filledAmount += amount;
-        orders[orderId].status.orderAccepted = false;
-        unclaimedProceeds[orders[orderId].initiator] = proceeds;
+        orderDetails[orderId].filledAmount += amount;
+        orderDetails[orderId].status.orderAccepted = false;
+        unclaimedProceeds[orderDetails[orderId].initiator] = proceeds;
     }
 
     /// @notice Fills a bid order
@@ -409,45 +438,50 @@ contract SwapContract {
     ///      it issues new shares to the initiator, otherwise it transfers shares from the filler (address who accepted order) to the initiator.
     /// @param orderId The id of the order to fill
     function _fillBid(uint256 orderId) internal {
-        uint256 amount = acceptedOrderQty[orders[orderId].filler][orderId];
+        uint256 amount = acceptedOrderQty[orderDetails[orderId].filler][
+            orderId
+        ];
         require(canFillOrder(orderId, amount), "Order cannot be filled");
-        Proceeds memory proceeds = unclaimedProceeds[orders[orderId].filler];
+        Proceeds memory proceeds = unclaimedProceeds[
+            orderDetails[orderId].filler
+        ];
 
-        if (orders[orderId].orderType.isErc20Payment) {
+        if (orderDetails[orderId].orderType.isErc20Payment) {
             require(
                 paymentToken.transferFrom(
                     msg.sender,
                     address(this),
-                    orders[orderId].price * amount
+                    orderDetails[orderId].price * amount
                 ),
                 "Transfer of PaymentToken from buyer failed"
             );
-            proceeds.tokenProceeds += orders[orderId].price * amount;
+            proceeds.tokenProceeds += orderDetails[orderId].price * amount;
         } else {
             require(
-                msg.value >= orders[orderId].price * orders[orderId].amount,
+                msg.value >=
+                    orderDetails[orderId].price * orderDetails[orderId].amount,
                 "Incorrect Ether amount sent to fill bid order"
             );
-            proceeds.ethProceeds += orders[orderId].price * amount;
+            proceeds.ethProceeds += orderDetails[orderId].price * amount;
         }
 
-        if (orders[orderId].orderType.isShareIssuance) {
+        if (orderDetails[orderId].orderType.isShareIssuance) {
             shareToken.operatorIssueByPartition(
-                orders[orderId].partition,
-                orders[orderId].initiator,
+                orderDetails[orderId].partition,
+                orderDetails[orderId].initiator,
                 amount
             );
         } else {
             shareToken.operatorTransferByPartition(
-                orders[orderId].partition,
-                orders[orderId].filler,
-                orders[orderId].initiator,
+                orderDetails[orderId].partition,
+                orderDetails[orderId].filler,
+                orderDetails[orderId].initiator,
                 amount
             );
         }
-        orders[orderId].filledAmount += amount;
-        orders[orderId].status.orderAccepted = false;
-        unclaimedProceeds[orders[orderId].filler] = proceeds;
+        orderDetails[orderId].filledAmount += amount;
+        orderDetails[orderId].status.orderAccepted = false;
+        unclaimedProceeds[orderDetails[orderId].filler] = proceeds;
     }
 
     /// @notice Cancels an order
@@ -456,17 +490,20 @@ contract SwapContract {
     /// @param orderId The id of the order to cancel
     function cancelOrder(uint256 orderId) public {
         require(
-            msg.sender == orders[orderId].initiator,
+            msg.sender == orderDetails[orderId].initiator,
             "Only initiator can cancel"
         );
-        require(!orders[orderId].status.isCancelled, "Order already cancelled");
         require(
-            orders[orderId].filledAmount < orders[orderId].amount,
+            !orderDetails[orderId].status.isCancelled,
+            "Order already cancelled"
+        );
+        require(
+            orderDetails[orderId].filledAmount < orderDetails[orderId].amount,
             "Order already fully filled"
         );
-        orders[orderId].status.isCancelled = true;
-        orders[orderId].status.isApproved = false;
-        orders[orderId].status.orderAccepted = false;
+        orderDetails[orderId].status.isCancelled = true;
+        orderDetails[orderId].status.isApproved = false;
+        orderDetails[orderId].status.orderAccepted = false;
     }
 
     /// @notice Allows a user to claim their unclaimed proceeds

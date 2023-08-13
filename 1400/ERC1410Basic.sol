@@ -161,9 +161,10 @@ abstract contract ERC1410Basic is ERC1410Snapshot {
     function _transferByPartition(
         address _from,
         address _to,
-        uint256 _value,
+        uint256 __value,
         bytes32 _partition
     ) internal {
+        uint256 _value = __value.mul(10 ** 18);
         require(_validPartition(_partition, _from), "Invalid partition");
         require(
             partitions[_from][partitionToIndex[_from][_partition] - 1].amount >=

@@ -28,21 +28,21 @@ describe("DividendsDistribution", function () {
 
     it("Should successfully instantiate the contract", async function () {
         expect(await dividendsDistribution.sharesToken()).to.equal(sharesToken.address);
-        expect(await dividendsDistribution.reclaim_time()).to.equal(1);
+        expect(await dividendsDistribution.reclaimTime()).to.equal(1);
     });
 
     it("Should allow the owner to deposit dividends", async function () {
-        const amount = 1000;
+        const amount = 10
         const dividendAmount = ethers.utils.parseEther("100");
         await sharesToken.connect(owner).addToWhitelist(addr1.address);
         await sharesToken.connect(owner).issueByPartition(partition, addr1.address, amount);
-        expect(await sharesToken.balanceOfByPartition(partition, addr1.address)).to.equal(amount);
+        expect(await sharesToken.balanceOfByPartition(partition, addr1.address)).to.equal(ethers.utils.parseEther("" + amount));
         const checkBlock = (await ethers.provider.getBlock()).timestamp;
         await payoutToken.connect(owner).mint(owner.address, dividendAmount);
         await payoutToken.approve(dividendsDistribution.address, dividendAmount);
-        expect(await sharesToken.totalSupplyAt(partition, checkBlock)).to.equal(amount);
+        expect(await sharesToken.totalSupplyAt(partition, checkBlock)).to.equal(ethers.utils.parseEther("" + amount));
         await dividendsDistribution.connect(owner).depositDividend(dividendBlock, 1, 1, payoutDate, dividendAmount, payoutToken.address, partition);
-        expect(await dividendsDistribution.dividends(0)).to.exist;
+        expect(await dividendsDistribution.dividendDetails(0)).to.exist;
     });
 
     it("Should allow the owner to recycle a dividend", async function () {
@@ -58,22 +58,22 @@ describe("DividendsDistribution", function () {
         await ethers.provider.send("evm_mine");
 
         await dividendsDistribution.connect(owner).reclaimDividend(0);
-        let dividend = await dividendsDistribution.dividends(0);
+        let dividend = await dividendsDistribution.dividendDetails(0);
         expect(dividend.recycled).to.equal(true);
     });
 
     // Test Cases for claimDividend
 
     it("Should allow a shareholder to claim a dividend successfully", async function () {
-        const amount = 1000;
+        const amount = 10
         const dividendAmount = ethers.utils.parseEther("100");
         await sharesToken.connect(owner).addToWhitelist(addr1.address);
         await sharesToken.connect(owner).issueByPartition(partition, addr1.address, amount)
-        expect(await sharesToken.balanceOfByPartition(partition, addr1.address)).to.equal(amount);
+        expect(await sharesToken.balanceOfByPartition(partition, addr1.address)).to.equal(ethers.utils.parseEther("" + amount));
         const checkBlock = (await ethers.provider.getBlock()).timestamp;
         await payoutToken.connect(owner).mint(owner.address, dividendAmount);
         await payoutToken.approve(dividendsDistribution.address, dividendAmount);
-        expect(await sharesToken.totalSupplyAt(partition, checkBlock)).to.equal(amount);
+        expect(await sharesToken.totalSupplyAt(partition, checkBlock)).to.equal(ethers.utils.parseEther("" + amount));
         await dividendsDistribution.connect(owner).depositDividend(dividendBlock, 1, 1, payoutDate, dividendAmount, payoutToken.address, partition);
         // check payoutToken balance of dividendsDistribution contract
         expect(await payoutToken.balanceOf(dividendsDistribution.address)).to.equal(dividendAmount);

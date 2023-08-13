@@ -23,6 +23,8 @@ contract ERC1410Standard is ERC1410Operator {
         uint256 value
     );
 
+    uint8 public constant DECIMALS = 18;
+
     string public contractVersion = "0.1.3"; /// The version of the contract.
 
     /**
@@ -47,12 +49,13 @@ contract ERC1410Standard is ERC1410Operator {
     /// @notice Increases totalSupply and the corresponding amount of the specified owners partition
     /// @param _partition The partition to allocate the increase in balance
     /// @param _tokenHolder The token holder whose balance should be increased
-    /// @param _value The amount by which to increase the balance
+    /// @param __value The amount by which to increase the balance
     function _issueByPartition(
         bytes32 _partition,
         address _tokenHolder,
-        uint256 _value
+        uint256 __value
     ) internal whitelisted(_tokenHolder) {
+        uint256 _value = __value.mul(10 ** DECIMALS);
         // Add the function to validate the `_data` parameter
         _validateParams(_partition, _value);
         require(_tokenHolder != address(0), "Invalid token receiver");
@@ -171,8 +174,9 @@ contract ERC1410Standard is ERC1410Operator {
         bytes32 _partition,
         address _from,
         address _operator,
-        uint256 _value
+        uint256 __value
     ) internal {
+        uint256 _value = __value.mul(10 ** DECIMALS);
         // Add the function to validate the `_data` parameter
         _validateParams(_partition, _value);
         require(_validPartition(_partition, _from), "Invalid partition");

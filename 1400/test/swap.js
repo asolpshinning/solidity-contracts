@@ -12,7 +12,7 @@ describe("Orders and Swap Functions Testing", function () {
         const PaymentToken = await ethers.getContractFactory("ERC20");
         const paymentToken = await PaymentToken.deploy("PaymentToken", "PTK");
 
-        const SwapContract = await ethers.getContractFactory("SwapContract");
+        const SwapContract = await ethers.getContractFactory("CompliantSwap");
         const swapContract = await SwapContract.deploy(shareToken.address, paymentToken.address);
         // set txnAPprovalsEnabled to false so that we can approve orders
         await swapContract.connect(owner).toggleTxnApprovals();
@@ -32,7 +32,7 @@ describe("Orders and Swap Functions Testing", function () {
         await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount);
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false);
 
-        const order = await swapContract.orders(0);
+        const order = await swapContract.orderDetails(0);
         expect(order.initiator).to.equal(addr1.address);
         expect(order.partition).to.equal(partition);
         expect(order.amount).to.equal(amount);
@@ -51,7 +51,7 @@ describe("Orders and Swap Functions Testing", function () {
         await paymentToken.connect(owner).mint(addr1.address, amount * price);
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, false, false, false);
 
-        const order = await swapContract.orders(0);
+        const order = await swapContract.orderDetails(0);
         expect(order.initiator).to.equal(addr1.address);
         expect(order.amount).to.equal(amount);
         expect(order.price).to.equal(price);
@@ -69,7 +69,7 @@ describe("Orders and Swap Functions Testing", function () {
         await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount - 10);
 
         await expect(
-            swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false)
+            swapContract.connect(addr1).initiateOrder(partition, ethers.utils.parseEther("" + amount), price, true, false, false)
         ).to.be.revertedWith("Swap: Insufficient balance");
     });
 
@@ -80,7 +80,7 @@ describe("Orders and Swap Functions Testing", function () {
         const price = 1;
         await swapContract.connect(owner).initiateOrder(partition, amount, price, true, true, false);
 
-        const order = await swapContract.orders(0);
+        const order = await swapContract.orderDetails(0);
         expect(order.initiator).to.equal(owner.address);
         expect(order.amount).to.equal(amount);
         expect(order.price).to.equal(price);
@@ -135,21 +135,21 @@ describe("Orders and Swap Functions Testing", function () {
 
         // Issue a Share Issuance order
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, false, true, false);
-        let order = await swapContract.orders(0);
+        let order = await swapContract.orderDetails(0);
         expect(order.orderType.isAskOrder).to.equal(false);
         expect(order.orderType.isShareIssuance).to.equal(true);
         expect(order.orderType.isErc20Payment).to.equal(false);
 
         // Issue an ERC20 Payment order
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, false, false, true);
-        order = await swapContract.orders(1);
+        order = await swapContract.orderDetails(1);
         expect(order.orderType.isAskOrder).to.equal(false);
         expect(order.orderType.isShareIssuance).to.equal(false);
         expect(order.orderType.isErc20Payment).to.equal(true);
 
         // Issue an order that is both a Share Issuance and ERC20 Payment
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, false, true, true);
-        order = await swapContract.orders(2);
+        order = await swapContract.orderDetails(2);
         expect(order.orderType.isAskOrder).to.equal(false);
         expect(order.orderType.isShareIssuance).to.equal(true);
         expect(order.orderType.isErc20Payment).to.equal(true);
@@ -179,7 +179,7 @@ describe("Orders and Swap Functions Testing", function () {
         await shareToken.connect(owner).issueByPartition(partition, owner.address, amount);
         await swapContract.connect(owner).initiateOrder(partition, amount, price, true, true, false);
 
-        const order = await swapContract.orders(0);
+        const order = await swapContract.orderDetails(0);
         expect(order.initiator).to.equal(owner.address);
         expect(order.orderType.isShareIssuance).to.equal(true);
     });
@@ -196,7 +196,7 @@ describe("Orders and Swap Functions Testing", function () {
         await shareToken.connect(owner).issueByPartition(partition, addr1.address, amount);
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, true, false);
 
-        const order = await swapContract.orders(0);
+        const order = await swapContract.orderDetails(0);
         expect(order.initiator).to.equal(addr1.address);
         expect(order.orderType.isShareIssuance).to.equal(true);
     });
@@ -232,7 +232,7 @@ describe("Orders and Swap Functions Testing", function () {
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false);
         await swapContract.connect(owner).approveOrder(0);
 
-        const order = await swapContract.orders(0);
+        const order = await swapContract.orderDetails(0);
         expect(order.status.isApproved).to.equal(true);
     });
 
@@ -248,7 +248,7 @@ describe("Orders and Swap Functions Testing", function () {
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false);
         await swapContract.connect(addr2).approveOrder(0);
 
-        const order = await swapContract.orders(0);
+        const order = await swapContract.orderDetails(0);
         expect(order.status.isApproved).to.equal(true);
     });
 
@@ -343,7 +343,7 @@ describe("Orders and Swap Functions Testing", function () {
 
         await swapContract.connect(owner).managerResetOrder(0);
 
-        const order = await swapContract.orders(0);
+        const order = await swapContract.orderDetails(0);
         expect(order.status.isApproved).to.equal(false);
         expect(order.status.orderAccepted).to.equal(false);
         expect(order.status.isCancelled).to.equal(false);
@@ -399,7 +399,7 @@ describe("Orders and Swap Functions Testing", function () {
         await swapContract.connect(owner).approveOrder(0);
         // Addr2 accepts the order
         expect(await swapContract.connect(addr2).acceptOrder(0, amount / 2)).to.not.be.reverted;
-        let order = await swapContract.orders(0);
+        let order = await swapContract.orderDetails(0);
         expect(await order.status.orderAccepted).to.equal(true);
         //expect(await swapContract.connect(addr2).acceptOrder(0, amount)).to.be.revertedWith("Order already accepted");
     });
@@ -419,7 +419,7 @@ describe("Orders and Swap Functions Testing", function () {
         await shareToken.connect(owner).authorizeOperator(swapContract.address);
         // initiate order
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, true);
-        let order = await swapContract.orders(0);
+        let order = await swapContract.orderDetails(0);
         expect(await order.status.orderAccepted).to.equal(false);
         // mint payment tokens to addr2
         await paymentToken.connect(owner).mint(addr2.address, amount * price);
@@ -430,15 +430,15 @@ describe("Orders and Swap Functions Testing", function () {
         await swapContract.connect(owner).approveOrder(0);
         // Addr2 accepts the order
         await swapContract.connect(addr2).acceptOrder(0, amount / 2);
-        order = await swapContract.orders(0);
+        order = await swapContract.orderDetails(0);
         expect(await order.status.orderAccepted).to.equal(true);
         // Addr2 fills the order
         await swapContract.connect(addr2).fillOrder(0, amount / 2);
-        order = await swapContract.orders(0);
+        order = await swapContract.orderDetails(0);
         expect(await order.status.orderAccepted).to.equal(false);
         // Addr2 accepts the order again
         await swapContract.connect(addr2).acceptOrder(0, amount / 2);
-        order = await swapContract.orders(0);
+        order = await swapContract.orderDetails(0);
         expect(await order.status.orderAccepted).to.equal(true);
     });
 
@@ -493,12 +493,12 @@ describe("Orders and Swap Functions Testing", function () {
         // Fill the order
         await swapContract.connect(addr2).fillOrder(0, amount);
 
-        const order = await swapContract.orders(0);
+        const order = await swapContract.orderDetails(0);
         expect(order.filledAmount).to.equal(amount);
 
         const checkBlock = await ethers.provider.getBlockNumber();
-        expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(amount);
-        expect(await shareToken.balanceOfAt(partition, addr2.address, checkBlock)).to.equal(amount);
+        expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(ethers.utils.parseEther("" + amount));;
+        expect(await shareToken.balanceOfAtByPartition(partition, addr2.address, checkBlock)).to.equal(ethers.utils.parseEther("" + amount));
 
     });
 
@@ -527,7 +527,7 @@ describe("Orders and Swap Functions Testing", function () {
         // Fill the order
         await swapContract.connect(addr2).fillOrder(0, amount);
 
-        const order = await swapContract.orders(0);
+        const order = await swapContract.orderDetails(0);
         expect(order.filledAmount).to.equal(amount);
     });
 
@@ -565,11 +565,11 @@ describe("Orders and Swap Functions Testing", function () {
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false);
         // Cancel the first order
         await swapContract.connect(addr1).cancelOrder(0);
-        const order0 = await swapContract.orders(0);
+        const order0 = await swapContract.orderDetails(0);
         expect(order0.status.isCancelled).to.equal(true);
         // Disapprove the second order
         await swapContract.connect(owner).managerResetOrder(1);
-        const order1 = await swapContract.orders(1);
+        const order1 = await swapContract.orderDetails(1);
 
         await expect(swapContract.connect(addr1).fillOrder(0, amount)).to.be.revertedWith("Order already cancelled");
     });
@@ -707,7 +707,7 @@ describe("Orders and Swap Functions Testing", function () {
         // addr2 approves the order
         await swapContract.connect(addr2).approveOrder(0);
 
-        const order = await swapContract.orders(0);
+        const order = await swapContract.orderDetails(0);
         expect(order.status.isApproved).to.equal(true);
 
         // addr3 fills the order
@@ -715,8 +715,8 @@ describe("Orders and Swap Functions Testing", function () {
 
         // check total supply and share token balance of addr3
         const checkBlock = await ethers.provider.getBlockNumber();
-        expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(amount);
-        expect(await shareToken.balanceOfAt(partition, addr3.address, checkBlock)).to.equal(amount);
+        expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(ethers.utils.parseEther("" + amount));
+        expect(await shareToken.balanceOfAtByPartition(partition, addr3.address, checkBlock)).to.equal(ethers.utils.parseEther("" + amount));
     });
 
     it("Should allow a manager/owner to initiate shareIssuance ask order and let another address fill", async function () {
@@ -751,7 +751,7 @@ describe("Orders and Swap Functions Testing", function () {
         await swapContract.connect(manager).approveOrder(0);
         await swapContract.connect(manager).approveOrder(1);
 
-        const order = await swapContract.orders(0);
+        const order = await swapContract.orderDetails(0);
         expect(order.status.isApproved).to.equal(true);
 
         // addr3 fills the orders
@@ -759,12 +759,12 @@ describe("Orders and Swap Functions Testing", function () {
         await swapContract.connect(addr3).fillOrder(1, amount);
 
         // check balance of addr3
-        expect(await shareToken.balanceOfByPartition(partition, addr3.address)).to.equal(2 * amount);
+        expect(await shareToken.balanceOfByPartition(partition, addr3.address)).to.equal(ethers.utils.parseEther("" + (2 * amount)));
 
         // check total supply and share token balance of addr3 based on snapshot
         const checkBlock = await ethers.provider.getBlockNumber();
-        expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(2 * amount);
-        expect(await shareToken.balanceOfAt(partition, addr3.address, checkBlock)).to.equal(2 * amount);
+        expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(ethers.utils.parseEther("" + (2 * amount)));
+        expect(await shareToken.balanceOfAtByPartition(partition, addr3.address, checkBlock)).to.equal(ethers.utils.parseEther("" + (2 * amount)));
     });
 
     it("Should allow an address to intiate shareIssuance bid order and let the address fill", async function () {
@@ -794,20 +794,20 @@ describe("Orders and Swap Functions Testing", function () {
         // addr2 (manager) approves the order
         await swapContract.connect(manager).approveOrder(0);
 
-        const order = await swapContract.orders(0);
+        const order = await swapContract.orderDetails(0);
         expect(order.status.isApproved).to.equal(true);
 
         // addr3 fills the order
         await swapContract.connect(addr3).fillOrder(0, amount);
 
         // check balance of addr3
-        expect(await shareToken.balanceOfByPartition(partition, addr3.address)).to.equal(amount);
+        expect(await shareToken.balanceOfByPartition(partition, addr3.address)).to.equal(ethers.utils.parseEther("" + amount));
 
         // check total supply and share token balance of addr3 based on snapshot
         const checkBlock = await ethers.provider.getBlockNumber();
-        expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(amount);
-        expect(await shareToken.totalSupplyByPartition(partition)).to.equal(amount);
-        expect(await shareToken.balanceOfAt(partition, addr3.address, checkBlock)).to.equal(amount);
+        expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(ethers.utils.parseEther("" + amount));
+        expect(await shareToken.totalSupplyByPartition(partition)).to.equal(ethers.utils.parseEther("" + amount));
+        expect(await shareToken.balanceOfAtByPartition(partition, addr3.address, checkBlock)).to.equal(ethers.utils.parseEther("" + amount));
     });
 
     it("Should set isApproved status of an order to false after an order is filled, if txnApprovalsEnabled is true", async function () {
@@ -837,14 +837,14 @@ describe("Orders and Swap Functions Testing", function () {
         // addr2 (manager) approves the order
         await swapContract.connect(manager).approveOrder(0);
 
-        let order = await swapContract.orders(0);
+        let order = await swapContract.orderDetails(0);
         expect(order.status.isApproved).to.equal(true);
 
         // addr3 fills the order
         await swapContract.connect(addr3).fillOrder(0, amount);
 
         // check the isApproved status of the order
-        order = await swapContract.orders(0);
+        order = await swapContract.orderDetails(0);
         expect(order.status.isApproved).to.equal(false);
     });
     // Test Cases for Cancelling an Order
@@ -861,7 +861,7 @@ describe("Orders and Swap Functions Testing", function () {
         await swapContract.connect(addr1).initiateOrder(partition, amount, price, true, false, false);
 
         await swapContract.connect(addr1).cancelOrder(0);
-        const order = await swapContract.orders(0);
+        const order = await swapContract.orderDetails(0);
         expect(order.status.isCancelled).to.equal(true);
         expect(order.status.isApproved).to.equal(false);
         expect(order.status.orderAccepted).to.equal(false);
@@ -1127,7 +1127,7 @@ describe("Additional Test Cases Including Snapshot Balances Checking After Trans
         const PaymentToken = await ethers.getContractFactory("ERC20");
         const paymentToken = await PaymentToken.deploy("PaymentToken", "PTK");
 
-        const SwapContract = await ethers.getContractFactory("SwapContract");
+        const SwapContract = await ethers.getContractFactory("CompliantSwap");
         const swapContract = await SwapContract.deploy(shareToken.address, paymentToken.address);
         // set txnAPprovalsEnabled to false so that we can approve orders
         await swapContract.connect(owner).toggleTxnApprovals();
@@ -1158,11 +1158,11 @@ describe("Additional Test Cases Including Snapshot Balances Checking After Trans
         await shareToken.connect(manager).operatorTransferByPartition(partition, manager.address, addr2.address, amount / 4);
 
         const checkBlock = await ethers.provider.getBlockNumber();
-        expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(amount);
-        expect(await shareToken.balanceOfAt(partition, addr2.address, checkBlock)).to.equal(amount / 4);
-        expect(await shareToken.balanceOfByPartition(partition, addr2.address)).to.equal(amount / 4);
-        expect(await shareToken.balanceOfByPartition(partition, manager.address)).to.equal(3 * amount / 4);
-        expect(await shareToken.balanceOfAt(partition, manager.address, checkBlock)).to.equal(3 * amount / 4);
+        expect(await shareToken.totalSupplyAt(partition, checkBlock)).to.equal(ethers.utils.parseEther("" + amount));
+        expect(await shareToken.balanceOfAtByPartition(partition, addr2.address, checkBlock)).to.equal(ethers.utils.parseEther("" + amount / 4));
+        expect(await shareToken.balanceOfByPartition(partition, addr2.address)).to.equal(ethers.utils.parseEther("" + amount / 4));
+        expect(await shareToken.balanceOfByPartition(partition, manager.address)).to.equal(ethers.utils.parseEther("" + 3 * amount / 4));
+        expect(await shareToken.balanceOfAtByPartition(partition, manager.address, checkBlock)).to.equal(ethers.utils.parseEther("" + 3 * amount / 4));
     });
 
 });

@@ -29,7 +29,7 @@ abstract contract ERC1410Snapshot {
      * @param _blockNumber The block number when the balance is queried
      * @return The balance at `_blockNumber`
      */
-    function balanceOfAt(
+    function balanceOfAtByPartition(
         bytes32 partition,
         address _owner,
         uint256 _blockNumber

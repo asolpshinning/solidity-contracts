@@ -139,7 +139,7 @@ contract DividendsDistribution {
         );
         require(!dividend.recycled, "Dividend has been recycled");
 
-        uint256 shareBalance = sharesToken.balanceOfAt(
+        uint256 shareBalance = sharesToken.balanceOfAtByPartition(
             dividend.partition,
             msg.sender,
             dividend.blockNumber
@@ -231,7 +231,7 @@ contract DividendsDistribution {
             return 0;
         }
 
-        uint256 shareBalance = sharesToken.balanceOfAt(
+        uint256 shareBalance = sharesToken.balanceOfAtByPartition(
             dividend.partition,
             _address,
             dividend.blockNumber
